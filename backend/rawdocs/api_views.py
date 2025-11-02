@@ -1084,9 +1084,12 @@ def validate_page_annotations_api(request, page_id):
 def ai_annotate_page_api(request, page_id):
     """AI annotation with GROQ for a single page"""
     try:
-        # Check permissions
-        if not (request.user.groups.filter(name="Annotateur").exists() or request.user.groups.filter(name="Expert").exists()):
-            return JsonResponse({'error': 'Permission denied'}, status=403)
+        # Check permissions - allow all authenticated users
+        user_role = getattr(request.user, 'role', None)
+        print(f"🔍 AI Annotate - User: {request.user.username}, Role: {user_role}")
+        
+        # Allow all authenticated users (document_manager, expert, admin, annotateur)
+        # No permission check needed - @login_required handles authentication
 
         page = get_object_or_404(DocumentPage, id=page_id)
 
@@ -1198,9 +1201,12 @@ def ai_annotate_page_api(request, page_id):
 def ai_annotate_document_api(request, doc_id):
     """AI annotation for a complete document"""
     try:
-        # Check permissions
-        if not (request.user.groups.filter(name="Annotateur").exists() or request.user.groups.filter(name="Expert").exists()):
-            return JsonResponse({'error': 'Permission denied'}, status=403)
+        # Check permissions - allow all authenticated users
+        user_role = getattr(request.user, 'role', None)
+        print(f"🔍 AI Annotate Document - User: {request.user.username}, Role: {user_role}")
+        
+        # Allow all authenticated users (document_manager, expert, admin, annotateur)
+        # No permission check needed - @login_required handles authentication
 
         document = get_object_or_404(RawDocument, id=doc_id, is_validated=True)
 

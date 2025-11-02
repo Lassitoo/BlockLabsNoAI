@@ -104,6 +104,13 @@ const DocumentAnnotate = () => {
     }
   }, [currentPage, documentData]);
 
+  // Highlight annotations in the structured HTML
+  useEffect(() => {
+    if (structuredHtml && annotations.length > 0) {
+      highlightAnnotations();
+    }
+  }, [annotations, structuredHtml]);
+
   const fetchDocument = async () => {
     try {
       const response = await axiosInstance.get(`/annotation/document/${documentId}/`);
@@ -198,6 +205,79 @@ const DocumentAnnotate = () => {
     }
   };
 
+  const highlightAnnotations = () => {
+    const container = document.querySelector('.structured-html-view');
+    if (!container) return;
+
+    // Remove existing highlights
+    container.querySelectorAll('.annotation-highlight').forEach(el => {
+      const parent = el.parentNode;
+      if (parent) {
+        parent.replaceChild(document.createTextNode(el.textContent || ''), el);
+        parent.normalize();
+      }
+    });
+
+    // Sort annotations by position
+    const sortedAnnotations = [...annotations].sort((a, b) => a.startPos - b.startPos);
+
+    // Apply highlights
+    sortedAnnotations.forEach((annotation) => {
+      const text = annotation.text;
+      const color = annotation.color;
+      
+      // Find and highlight text
+      highlightTextInElement(container, text, color, annotation.type_display);
+    });
+  };
+
+  const highlightTextInElement = (element: Element, searchText: string, color: string, typeName: string) => {
+    const walker = document.createTreeWalker(
+      element,
+      NodeFilter.SHOW_TEXT,
+      null
+    );
+
+    const nodesToReplace: { node: Node; text: string; index: number }[] = [];
+    let currentNode;
+
+    while ((currentNode = walker.nextNode())) {
+      const text = currentNode.textContent || '';
+      const index = text.indexOf(searchText);
+      
+      if (index !== -1) {
+        nodesToReplace.push({ node: currentNode, text: searchText, index });
+      }
+    }
+
+    // Replace nodes with highlighted versions
+    nodesToReplace.forEach(({ node, text, index }) => {
+      const parent = node.parentNode;
+      if (!parent) return;
+
+      const nodeText = node.textContent || '';
+      const before = nodeText.substring(0, index);
+      const after = nodeText.substring(index + text.length);
+
+      const span = document.createElement('span');
+      span.className = 'annotation-highlight';
+      span.textContent = text;
+      span.style.backgroundColor = `${color}40`; // 40 = 25% opacity
+      span.style.borderBottom = `2px solid ${color}`;
+      span.style.padding = '2px 4px';
+      span.style.borderRadius = '3px';
+      span.style.cursor = 'pointer';
+      span.title = typeName;
+
+      const fragment = document.createDocumentFragment();
+      if (before) fragment.appendChild(document.createTextNode(before));
+      fragment.appendChild(span);
+      if (after) fragment.appendChild(document.createTextNode(after));
+
+      parent.replaceChild(fragment, node);
+    });
+  };
+
   const handleAiAnnotate = async () => {
     if (!documentData) return;
 
@@ -214,9 +294,14 @@ const DocumentAnnotate = () => {
       if (data.success) {
         // Refresh the document to get updated annotations
         await fetchDocument();
+        
+        // Show success message
+        alert(`✅ ${data.annotations_created} annotations créées avec l'IA !`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error with AI annotation:', error);
+      const errorMsg = error.response?.data?.error || 'Erreur lors de l\'annotation IA';
+      alert(`❌ ${errorMsg}`);
     } finally {
       setAnnotating(false);
     }
@@ -474,6 +559,12 @@ const DocumentAnnotate = () => {
                     {showAiAnnotations ? <Eye className="w-4 h-4 mr-2" /> : <EyeOff className="w-4 h-4 mr-2" />}
                     {showAiAnnotations ? 'Hide' : 'Show'} AI
                   </Button>
+                  
+                  {annotations.length > 0 && (
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                      {annotations.length} annotation{annotations.length > 1 ? 's' : ''}
+                    </Badge>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -482,9 +573,10 @@ const DocumentAnnotate = () => {
                     size="sm"
                     onClick={handleAiAnnotate}
                     disabled={annotating}
+                    className="bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-300"
                   >
                     <Bot className="w-4 h-4 mr-2" />
-                    {annotating ? 'Annotating...' : 'AI Annotate'}
+                    {annotating ? 'Annotation en cours...' : 'AI Annotate'}
                   </Button>
 
                   <Button
@@ -494,7 +586,7 @@ const DocumentAnnotate = () => {
                     className="bg-green-600 hover:bg-green-700"
                   >
                     <CheckCircle className="w-4 h-4 mr-2" />
-                    {validating ? 'Validating...' : 'Validate Page'}
+                    {validating ? 'Validation...' : 'Validate Page'}
                   </Button>
                 </div>
               </div>
