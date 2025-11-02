@@ -447,13 +447,15 @@ def get_model_evaluation_data(request):
     try:
         print("=== DÉBUT get_model_evaluation_data ===")
 
-        # Récupérer toutes les annotations validées
+        # Récupérer TOUTES les annotations (pas seulement validées)
         print("1. Récupération des annotations...")
-        all_annotations = Annotation.objects.filter(
-            is_validated=True
-        )
+        all_annotations = Annotation.objects.all()
+        validated_annotations = all_annotations.filter(is_validated=True)
+        
         total = all_annotations.count()
-        print(f"   Total annotations validées: {total}")
+        total_validated = validated_annotations.count()
+        print(f"   Total annotations: {total}")
+        print(f"   Total annotations validées: {total_validated}")
 
         if total == 0:
             print("   Aucune annotation - retour valeurs par défaut")
@@ -491,24 +493,26 @@ def get_model_evaluation_data(request):
         # Calculer les métriques de confusion
         print("2. Calcul des métriques de confusion...")
         # True Positive: Annotations validées avec status 'validated'
-        tp = all_annotations.filter(
-            is_validated=True,
+        tp = validated_annotations.filter(
             validation_status='validated'
         ).count()
 
         # False Positive: Annotations validées mais rejetées
-        fp = all_annotations.filter(
-            is_validated=True,
+        fp = validated_annotations.filter(
             validation_status='rejected'
         ).count()
 
         # False Negative: Annotations non encore validées
-        fn = Annotation.objects.filter(
+        fn = all_annotations.filter(
             is_validated=False
         ).count()
 
-        # True Negative: Difficile à calculer pour les annotations
-        tn = 0
+        # True Negative: Annotations créées par l'IA mais non utilisées
+        # Pour simplifier, on considère les annotations AI non validées comme TN
+        tn = all_annotations.filter(
+            source='ai',
+            is_validated=False
+        ).count()
 
         print(f"   TP={tp}, FP={fp}, FN={fn}, TN={tn}")
 
@@ -546,19 +550,25 @@ def get_model_evaluation_data(request):
         print("5. Calcul des stats détaillées...")
         for ann_type in annotation_types:
             try:
-                # Total des annotations de ce type qui sont validées
+                # Total des annotations de ce type (toutes sources)
                 total_count = all_annotations.filter(
                     annotation_type=ann_type
                 ).count()
 
-                # Annotations acceptées
-                validated_count = all_annotations.filter(
+                # Annotations créées par l'IA
+                ai_count = all_annotations.filter(
+                    annotation_type=ann_type,
+                    source='ai'
+                ).count()
+
+                # Annotations validées par l'expert
+                validated_count = validated_annotations.filter(
                     annotation_type=ann_type,
                     validation_status='validated'
                 ).count()
 
                 # Annotations rejetées
-                rejected_count = all_annotations.filter(
+                rejected_count = validated_annotations.filter(
                     annotation_type=ann_type,
                     validation_status='rejected'
                 ).count()
@@ -567,20 +577,33 @@ def get_model_evaluation_data(request):
                 if total_count > 0:
                     validation_rate = round((validated_count / total_count) * 100, 1)
 
+                # Calculer la confiance moyenne
+                avg_confidence = all_annotations.filter(
+                    annotation_type=ann_type,
+                    confidence_score__isnull=False
+                ).aggregate(avg=Avg('confidence_score'))['avg'] or 0
+                
+                if avg_confidence > 1:
+                    avg_confidence = avg_confidence / 100  # Normaliser si nécessaire
+
                 # Récupérer le nom du type
                 type_name = getattr(ann_type, 'display_name', None) or getattr(ann_type, 'name', None) or str(ann_type)
 
-                detailed_stats.append({
-                    'type': type_name,
-                    'ai_count': total_count,
-                    'expert_count': validated_count,
-                    'corrections': rejected_count,
-                    'validation_rate': validation_rate,
-                    'avg_confidence': 0.92
-                })
-                print(f"   Type '{type_name}': total={total_count}, validé={validated_count}")
+                # N'ajouter que si des annotations existent
+                if total_count > 0:
+                    detailed_stats.append({
+                        'type': type_name,
+                        'ai_count': ai_count,
+                        'expert_count': validated_count,
+                        'corrections': rejected_count,
+                        'validation_rate': validation_rate,
+                        'avg_confidence': round(avg_confidence, 2)
+                    })
+                    print(f"   Type '{type_name}': total={total_count}, AI={ai_count}, validé={validated_count}")
             except Exception as e:
                 print(f"   ERREUR sur type {ann_type}: {e}")
+                import traceback
+                traceback.print_exc()
                 continue
 
         # Métriques sémantiques
@@ -605,14 +628,45 @@ def get_model_evaluation_data(request):
         # Métriques de temps
         print("7. Calcul des métriques de temps...")
         try:
-            # RawDocument n'a pas de champ 'status', utilisons 'is_validated'
+            # Nombre de documents traités
             documents_processed = RawDocument.objects.filter(
                 is_validated=True
             ).count()
+            
+            # Nombre total de pages annotées
+            pages_annotated = DocumentPage.objects.filter(
+                is_annotated=True
+            ).count()
+            
+            # Nombre total de pages validées
+            pages_validated = DocumentPage.objects.filter(
+                is_validated_by_human=True
+            ).count()
+            
+            # Temps moyen estimé (basé sur le nombre d'annotations)
+            avg_annotations_per_page = total / max(pages_annotated, 1) if pages_annotated > 0 else 0
+            avg_ai_time = round(avg_annotations_per_page * 0.5, 1)  # ~0.5s par annotation pour l'IA
+            avg_expert_time = round(avg_annotations_per_page * 15, 1)  # ~15s par annotation pour l'expert
+            
+            # Calcul du temps gagné
+            time_saved_percentage = 0
+            if avg_expert_time > 0:
+                time_saved_percentage = round(((avg_expert_time - avg_ai_time) / avg_expert_time) * 100, 1)
+            
             print(f"   Documents traités: {documents_processed}")
+            print(f"   Pages annotées: {pages_annotated}")
+            print(f"   Pages validées: {pages_validated}")
+            print(f"   Temps moyen IA: {avg_ai_time}s, Expert: {avg_expert_time}s")
         except Exception as e:
             print(f"   ERREUR documents_processed: {e}")
+            import traceback
+            traceback.print_exc()
             documents_processed = 0
+            pages_annotated = 0
+            pages_validated = 0
+            avg_ai_time = 0
+            avg_expert_time = 0
+            time_saved_percentage = 0
 
         # Timeline data
         print("8. Génération des données de timeline...")
@@ -672,9 +726,11 @@ def get_model_evaluation_data(request):
             },
             'time_metrics': {
                 'documents_processed': documents_processed,
-                'avg_ai_time': 12.5,
-                'avg_expert_time': 180.3,
-                'time_saved_percentage': 93.1
+                'pages_annotated': pages_annotated,
+                'pages_validated': pages_validated,
+                'avg_ai_time': avg_ai_time,
+                'avg_expert_time': avg_expert_time,
+                'time_saved_percentage': time_saved_percentage
             },
             'timeline_data': timeline_data
         }

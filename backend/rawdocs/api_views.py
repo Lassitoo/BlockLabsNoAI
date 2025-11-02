@@ -2265,3 +2265,61 @@ def sync_page_json(request, page_id):
         return JsonResponse({'success': True})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@require_http_methods(["GET"])
+@login_required
+def view_original_pdf(request, doc_id):
+    """View original PDF file"""
+    try:
+        # Get document - allow access for owner, document_manager, expert, and admin
+        document = RawDocument.objects.get(id=doc_id)
+        
+        # Check permissions
+        user_role = getattr(request.user, 'role', None)
+        is_owner = document.owner == request.user
+        is_allowed_role = user_role in ['document_manager', 'expert', 'admin']
+        
+        if not (is_owner or is_allowed_role):
+            return JsonResponse({
+                'success': False,
+                'error': 'Permission denied'
+            }, status=403)
+        
+        # Check if file exists
+        if not document.file:
+            return JsonResponse({
+                'success': False,
+                'error': 'PDF file not found'
+            }, status=404)
+        
+        # Open and return the PDF file
+        from django.http import FileResponse
+        import os
+        
+        file_path = document.file.path
+        if not os.path.exists(file_path):
+            return JsonResponse({
+                'success': False,
+                'error': 'PDF file not found on disk'
+            }, status=404)
+        
+        # Return the PDF file
+        response = FileResponse(open(file_path, 'rb'), content_type='application/pdf')
+        # Get filename from the file field
+        filename = os.path.basename(document.file.name) if document.file else 'document.pdf'
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
+        return response
+        
+    except RawDocument.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Document not found'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
