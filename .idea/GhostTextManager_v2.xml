@@ -1,0 +1,685 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="GhostTextManager">
+    <option name="inputs">
+      <map>
+        <entry key="1/1&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Runtime AxiosError&#10;&#10;&#10;Network Error&#10;src\contexts\AuthContext.tsx (64:24) @&lt;file_name&gt;&#10;&#10;&#10;  62 |     try {&#10;  63 |       console.log(&quot; Attempting to get CSRF token...&quot;);&#10;&gt; 64 |       const response = await axiosInstance.get(&quot;/csrf/&quot;);&#10;     |                        ^&#10;  65 |       console.log(&quot;✅ CSRF token response:&quot;, response.data);&#10;  66 |       // The cookie is now set, no need to return anything&#10;  67 |     } catch (error) {&#10;Call Stack&#10;5&#10;&#10;Show 2 ignore-listed frame(s)&#10;async getCsrfToken&#10;src\contexts\AuthContext.tsx (64:24)&#10;async login&#10;src\contexts\AuthContext.tsx (100:5)&#10;async handleSubmit&#10;src\pages\login.tsx (24:26)&#10;1&#10;2&#10;&#10;&#10;J ai un souci pour la connexion le login marche pa">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761988158982" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="1/1&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Runtime AxiosError&#10;&#10;&#10;Network Error&#10;src\contexts\AuthContext.tsx (64:24) @&lt;file_name&gt;&#10;&#10;&#10;  62 |     try {&#10;  63 |       console.log(&quot; Attempting to get CSRF token...&quot;);&#10;&gt; 64 |       const response = await axiosInstance.get(&quot;/csrf/&quot;);&#10;     |                        ^&#10;  65 |       console.log(&quot;✅ CSRF token response:&quot;, response.data);&#10;  66 |       // The cookie is now set, no need to return anything&#10;  67 |     } catch (error) {&#10;Call Stack&#10;5&#10;&#10;Show 2 ignore-listed frame(s)&#10;async getCsrfToken&#10;src\contexts\AuthContext.tsx (64:24)&#10;async login&#10;src\contexts\AuthContext.tsx (100:5)&#10;async handleSubmit&#10;src\pages\login.tsx (24:26)&#10;1&#10;2&#10;&#10;&#10;Resolvez moi ce probleme de connexion  dans le fichier AuthConrtext">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761991934884" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="1/1&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Runtime AxiosError&#10;&#10;&#10;Request failed with status code 404&#10;src\pages\admin\DocumentManagement.tsx (49:24) @&lt;file_name&gt;&#10;&#10;&#10;  47 |   const fetchDocuments = async () =&gt; {&#10;  48 |     try {&#10;&gt; 49 |       const response = await axios.get&lt;{ success: boolean; documents: Document[] }&gt;(&#10;     |                        ^&#10;  50 |         'http://localhost:8000/api/admin/documents/',&#10;  51 |         { withCredentials: true }&#10;  52 |       );&#10;Call Stack&#10;4&#10;&#10;Show 3 ignore-listed frame(s)&#10;async fetchDocuments&#10;src\pages\admin\DocumentManagement.tsx (49:24)&#10;1&#10;2&#10;&#10;Resolvez moi cette erreur quand j'essaie d acceder a Documents dans admin">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1762030307586" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="1/1&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Runtime AxiosError&#10;&#10;&#10;Request failed with status code 404&#10;src\services\documentService.ts (84:5) @&lt;file_name&gt;&#10;&#10;&#10;  82 |   // Valider document&#10;  83 |   async validateDocument(docId: string): Promise&lt;void&gt; {&#10;&gt; 84 |     await api.post(`/document/${docId}/validate/`);&#10;     |     ^&#10;  85 |   },&#10;  86 |&#10;  87 |   // Récupérer un document&#10;Call Stack&#10;5&#10;&#10;Show 3 ignore-listed frame(s)&#10;async Object.validateDocument&#10;src\services\documentService.ts (84:5)&#10;async handleValidate&#10;src\components\document\MetadataForm.tsx (77:7)&#10;1&#10;2&#10;&#10;&#10;J ai cette erreur la quand j esssaie de Valider le document extrait &#10;&#10;La ligne 84 de documentService.ts et je veux que quand je le sauvegarde je veux le voir dans liste des documents">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761885186621" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="1/1&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Runtime AxiosError&#10;&#10;&#10;Request failed with status code 405&#10;src\services\documentService.ts (72:5) @&lt;file_name&gt;&#10;&#10;&#10;  70 |     });&#10;  71 |&#10;&gt; 72 |     await api.post('/upload/', formData);&#10;     |     ^&#10;  73 |   },&#10;  74 |&#10;  75 |   // Réextraire métadonnées&#10;Call Stack&#10;5&#10;&#10;Show 3 ignore-listed frame(s)&#10;async Object.updateMetadata&#10;src\services\documentService.ts (72:5)&#10;async handleSave&#10;src\components\document\MetadataForm.tsx (47:7)&#10;1&#10;2&#10;&#10;&#10;J'ai ce probleme la quand j essaie de cliquer sur Sauvegarder quand j essaie de uploader et extraire les documents ù">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761911373979" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="1/1&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Runtime AxiosError&#10;&#10;&#10;Request failed with status code 500&#10;src\pages\document-manager\DocumentManagerDashboard.tsx (59:24) @&lt;file_name&gt;&#10;&#10;&#10;  57 |     try {&#10;  58 |       console.log(` Validating document ${docId}...`);&#10;&gt; 59 |       const response = await api.post(`/validate/${docId}/`);&#10;     |                        ^&#10;  60 |&#10;  61 |       if (response.data.success) {&#10;  62 |         console.log(&quot;✅ Document validated successfully&quot;);&#10;Call Stack&#10;4&#10;&#10;Show 3 ignore-listed frame(s)&#10;async handleValidateDocument&#10;src\pages\document-manager\DocumentManagerDashboard.tsx (59:24)&#10;1&#10;2&#10;&#10;&#10;Juste revoyez moi cette erreur pour valider le document">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1762030939895" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="1/1&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Runtime TypeError&#10;&#10;&#10;Cannot convert undefined or null to object&#10;src\pages\annotation\view\[id].tsx (228:21) @&lt;file_name&gt;&#10;&#10;&#10;  226 |           &lt;/CardHeader&gt;&#10;  227 |           &lt;CardContent&gt;&#10;&gt; 228 |             {Object.keys(document.metadata).length === 0 ? (&#10;      |                     ^&#10;  229 |               &lt;div className=&quot;text-center py-8 text-muted-foreground&quot;&gt;&#10;  230 |                 &lt;FileText className=&quot;w-12 h-12 mx-auto mb-4 text-gray-400&quot; /&gt;&#10;  231 |                 &lt;p className=&quot;text-lg font-medium mb-2&quot;&gt;Aucune métadonnée extraite&lt;/p&gt;&#10;Call Stack&#10;13&#10;&#10;Show 11 ignore-listed frame(s)&#10;Object.keys&#10;&lt;anonymous&gt;&#10;DocumentMetadataView&#10;src\pages\annotation\view\[id].tsx (228:21)&#10;1&#10;2&#10;&#10;&#10;Il y a une autre erreur">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761910125608" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="1/1&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Runtime TypeError&#10;&#10;&#10;Cannot read properties of null (reading 'cookie')&#10;src\pages\annotation\view\[id].tsx (30:35) @&lt;file_name&gt;&#10;&#10;&#10;  28 |   api.interceptors.request.use((config) =&gt; {&#10;  29 |     const getCookie = (name: string) =&gt; {&#10;&gt; 30 |       const value = `; ${document.cookie}`;&#10;     |                                   ^&#10;  31 |       const parts = value.split(`; ${name}=`);&#10;  32 |       if (parts.length === 2) return parts.pop()?.split(';').shift();&#10;  33 |       return null;&#10;Call Stack&#10;6&#10;&#10;Show 2 ignore-listed frame(s)&#10;DocumentMetadataView.use.getCookie&#10;src\pages\annotation\view\[id].tsx (30:35)&#10;DocumentMetadataView.use&#10;src\pages\annotation\view\[id].tsx (35:23)&#10;async fetchDocument&#10;src\pages\annotation\view\[id].tsx (55:24)&#10;async fetchDocument&#10;src\pages\annotation\view\[id].tsx (55:24)&#10;1&#10;2&#10;&#10;&#10;&#10;J'ai cette erreur la encore">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761908653844" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="1/1&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Runtime TypeError&#10;&#10;&#10;Cannot read properties of undefined (reading 'document')&#10;src\pages\annotation\view\[id].tsx (65:37) @&lt;file_name&gt;&#10;&#10;&#10;  63 |&#10;  64 |         if (data.success) {&#10;&gt; 65 |           const docData = data.data.document;&#10;     |                                     ^&#10;  66 |           setDocument(docData);&#10;  67 |           console.log(&quot;✅ Document loaded successfully&quot;);&#10;  68 |         } else {&#10;Call Stack&#10;1&#10;&#10;fetchDocument&#10;src\pages\annotation\view\[id].tsx (65:37)&#10;1&#10;2&#10;&#10;&#10;Faut voir cette erreur resolvez la">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761910014638" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="2/2&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Runtime TypeError&#10;&#10;&#10;api.get is not a function&#10;src\pages\annotation\view\[id].tsx (60:34) @&lt;file_name&gt;&#10;&#10;&#10;  58 |&#10;  59 |       // Fetch document details&#10;&gt; 60 |       const response = await api.get(`/annotation/document/${id}/`);&#10;     |                                  ^&#10;  61 |&#10;  62 |       if (response.data.success) {&#10;  63 |         const docData = response.data.data.document;&#10;Call Stack&#10;50&#10;&#10;Show 48 ignore-listed frame(s)&#10;fetchDocument&#10;src\pages\annotation\view\[id].tsx (60:34)&#10;DocumentMetadataView.useEffect&#10;src\pages\annotation\view\[id].tsx (50:7)&#10;1&#10;2&#10;&#10;&#10;Il ya cette erreur aussi c'est deux erreurs">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761908918771" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="Avez vous le contexte">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="2.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1762034308123" />
+                  <option value="1762033324068" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="B&#10;BlockLabs&#10;Sign Up&#10;Welcome Back&#10;Sign in to continue to BlockLabs&#10;&#10;Login failed&#10;&#10;Username or Email&#10;Lassito&#10;Password&#10;•••••&#10;Sign In&#10;Don't have an account? Create one&#10;&#10;© 2025 BlockLabs. All rights reserved.&#10;&#10;&#10;1/1&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Runtime AxiosError&#10;&#10;&#10;Network Error&#10;src\contexts\AuthContext.tsx (63:7) @&lt;file_name&gt;&#10;&#10;&#10;  61 |   const getCsrfToken = async () =&gt; {&#10;  62 |     try {&#10;&gt; 63 |       await axiosInstance.get(&quot;/csrf/&quot;);&#10;     |       ^&#10;  64 |       // The cookie is now set, no need to return anything&#10;  65 |     } catch (error) {&#10;  66 |       console.error(&quot;Failed to get CSRF token:&quot;, error);&#10;Call Stack&#10;5&#10;&#10;Show 2 ignore-listed frame(s)&#10;async getCsrfToken&#10;src\contexts\AuthContext.tsx (63:7)&#10;async login&#10;src\contexts\AuthContext.tsx (95:5)&#10;async handleSubmit&#10;src\pages\login.tsx (24:26)&#10;1&#10;2&#10;/login&#10;&#10;&#10;Maintenant j ai une erreur ici">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761886507742" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="B&#10;BlockLabs&#10;Sign Up&#10;Welcome Back&#10;Sign in to continue to BlockLabs&#10;&#10;Login failed&#10;&#10;Username or Email&#10;Lassito&#10;Password&#10;•••••&#10;Sign In&#10;Don't have an account? Create one&#10;&#10;© 2025 BlockLabs. All rights reserved.&#10;&#10;&#10;1/1&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Runtime AxiosError&#10;&#10;&#10;Network Error&#10;src\contexts\AuthContext.tsx (64:24) @&lt;file_name&gt;&#10;&#10;&#10;  62 |     try {&#10;  63 |       console.log(&quot; Attempting to get CSRF token...&quot;);&#10;&gt; 64 |       const response = await axiosInstance.get(&quot;/api/rawdocs/csrf/&quot;);&#10;     |                        ^&#10;  65 |       console.log(&quot;✅ CSRF token response:&quot;, response.data);&#10;  66 |       // The cookie is now set, no need to return anything&#10;  67 |     } catch (error) {&#10;Call Stack&#10;5&#10;&#10;Show 2 ignore-listed frame(s)&#10;async getCsrfToken&#10;src\contexts\AuthContext.tsx (64:24)&#10;async login&#10;src\contexts\AuthContext.tsx (99:5)&#10;async handleSubmit&#10;src\pages\login.tsx (24:26)&#10;1&#10;2&#10;/login&#10;&#10;&#10;Il y a toujours une erreur">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761886853948" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="B&#10;BlockLabs&#10;Sign Up&#10;Welcome Back&#10;Sign in to continue to BlockLabs&#10;&#10;Login failed&#10;&#10;Username or Email&#10;Lassito&#10;Password&#10;•••••&#10;Sign In&#10;Don't have an account? Create one&#10;&#10;© 2025 BlockLabs. All rights reserved.&#10;&#10;&#10;1/1&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Runtime AxiosError&#10;&#10;&#10;Network Error&#10;src\contexts\AuthContext.tsx (64:24) @&lt;file_name&gt;&#10;&#10;&#10;  62 |     try {&#10;  63 |       console.log(&quot; Attempting to get CSRF token...&quot;);&#10;&gt; 64 |       const response = await axiosInstance.get(&quot;/csrf/&quot;);&#10;     |                        ^&#10;  65 |       console.log(&quot;✅ CSRF token response:&quot;, response.data);&#10;  66 |       // The cookie is now set, no need to return anything&#10;  67 |     } catch (error) {&#10;Call Stack&#10;5&#10;&#10;Show 2 ignore-listed frame(s)&#10;async getCsrfToken&#10;src\contexts\AuthContext.tsx (64:24)&#10;async login&#10;src\contexts\AuthContext.tsx (100:5)&#10;async handleSubmit&#10;src\pages\login.tsx (24:26)&#10;1&#10;2&#10;/login&#10;&#10;&#10;La connexion ne marche toujours pas">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761988961756" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="B&#10;BlockLabs&#10;Sign Up&#10;Welcome Back&#10;Sign in to continue to BlockLabs&#10;&#10;Login failed&#10;&#10;Username or Email&#10;Lassito&#10;Password&#10;•••••&#10;Sign In&#10;Don't have an account? Create one&#10;&#10;© 2025 BlockLabs. All rights reserved.&#10;&#10;&#10;1/1&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Runtime AxiosError&#10;&#10;&#10;Network Error&#10;src\contexts\AuthContext.tsx (64:24) @&lt;file_name&gt;&#10;&#10;&#10;  62 |     try {&#10;  63 |       console.log(&quot; Attempting to get CSRF token...&quot;);&#10;&gt; 64 |       const response = await axiosInstance.get(&quot;/csrf/&quot;);&#10;     |                        ^&#10;  65 |       console.log(&quot;✅ CSRF token response:&quot;, response.data);&#10;  66 |       // The cookie is now set, no need to return anything&#10;  67 |     } catch (error) {&#10;Call Stack&#10;5&#10;&#10;Show 2 ignore-listed frame(s)&#10;async getCsrfToken&#10;src\contexts\AuthContext.tsx (64:24)&#10;async login&#10;src\contexts\AuthContext.tsx (100:5)&#10;async handleSubmit&#10;src\pages\login.tsx (24:26)&#10;1&#10;2&#10;/login&#10;&#10;&#10;Pourquoi j ai cette erreur resolvez moi ca">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761987498073" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="B&#10;BlockLabs&#10;Sign Up&#10;Welcome Back&#10;Sign in to continue to BlockLabs&#10;&#10;Login failed&#10;&#10;Username or Email&#10;Lassito&#10;Password&#10;•••••&#10;Sign In&#10;Don't have an account? Create one&#10;&#10;© 2025 BlockLabs. All rights reserved.&#10;&#10;&#10;1/1&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Runtime AxiosError&#10;&#10;&#10;Request failed with status code 404&#10;src\contexts\AuthContext.tsx (64:24) @&lt;file_name&gt;&#10;&#10;&#10;  62 |     try {&#10;  63 |       console.log(&quot; Attempting to get CSRF token...&quot;);&#10;&gt; 64 |       const response = await axiosInstance.get(&quot;/rawdocs/csrf/&quot;);&#10;     |                        ^&#10;  65 |       console.log(&quot;✅ CSRF token response:&quot;, response.data);&#10;  66 |       // The cookie is now set, no need to return anything&#10;  67 |     } catch (error) {&#10;Call Stack&#10;6&#10;&#10;Show 3 ignore-listed frame(s)&#10;async getCsrfToken&#10;src\contexts\AuthContext.tsx (64:24)&#10;async login&#10;src\contexts\AuthContext.tsx (100:5)&#10;async handleSubmit&#10;src\pages\login.tsx (24:26)&#10;1&#10;2&#10;/login&#10;&#10;Resolvez moi cette erreur">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761888093890" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="Bah ca affiche toujours Loading Document mais je vois rien que Loading document ...">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761889541670" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="BlockLabs&#10;document manager&#10;&#10;Navigation&#10;Dashboard&#10;Upload&#10;Documents&#10;Lassito&#10;&#10;lasssdb4@&lt;file_name&gt;&#10;&#10;Logout&#10;Toggle Sidebar&#10;Document Manager&#10;Upload and annotate documents for processing&#10;&#10;Annotation&#10;Upload Document&#10;Total Documents&#10;0&#10;In Progress&#10;0&#10;Validated&#10;0&#10;Recent Documents&#10;Your recently uploaded documents&#10;&#10;No documents yet. Upload your first document to get started.&#10;&#10;1/1&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Runtime AxiosError&#10;&#10;&#10;Request failed with status code 404&#10;src\services\documentService.ts (115:22) @&lt;file_name&gt;&#10;&#10;&#10;  113 |   // Lister tous les documents (pour Document Manager)&#10;  114 |   async listDocuments(): Promise&lt;RawDocument[]&gt; {&#10;&gt; 115 |     const response = await api.get&lt;{ documents: RawDocument[] }&gt;('/rawdocs/documents/list/');&#10;      |                      ^&#10;  116 |     return response.data.documents;&#10;  117 |   },&#10;  118 | };&#10;Call Stack&#10;5&#10;&#10;Show 3 ignore-listed frame(s)&#10;async Object.listDocuments&#10;src\services\documentService.ts (115:22)&#10;async fetchDocuments&#10;src\pages\document-manager\DocumentManagerDashboard.tsx (21:20)&#10;1&#10;2&#10;/document-manager/DocumentManagerDashboard&#10;&#10;&#10;Pourquoi j ai cette erreur encore">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761886256064" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="BlockLabs&#10;document manager&#10;&#10;Navigation&#10;Dashboard&#10;Upload&#10;Documents&#10;Lassito&#10;&#10;lasssdb4@&lt;file_name&gt;&#10;&#10;Logout&#10;Toggle Sidebar&#10;Document Manager&#10;Upload and annotate documents for processing&#10;&#10;Annotation&#10;Upload Document&#10;Total Documents&#10;0&#10;In Progress&#10;0&#10;Validated&#10;0&#10;Recent Documents&#10;Your recently uploaded documents&#10;&#10;No documents yet. Upload your first document to get started.&#10;&#10;1/1&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Runtime AxiosError&#10;&#10;&#10;Request failed with status code 404&#10;src\services\documentService.ts (116:22) @&lt;file_name&gt;&#10;&#10;&#10;  114 |   // Lister tous les documents (pour Document Manager)&#10;  115 |   async listDocuments(): Promise&lt;RawDocument[]&gt; {&#10;&gt; 116 |     const response = await api.get&lt;{ documents: RawDocument[] }&gt;('/rawdocs/documents/list/');&#10;      |                      ^&#10;  117 |     return response.data.documents;&#10;  118 |   },&#10;  119 | };&#10;Call Stack&#10;5&#10;&#10;Show 3 ignore-listed frame(s)&#10;async Object.listDocuments&#10;src\services\documentService.ts (116:22)&#10;async fetchDocuments&#10;src\pages\document-manager\DocumentManagerDashboard.tsx (21:20)&#10;1&#10;2&#10;/document-manager/DocumentManagerDashboard&#10;&#10;&#10;J ai cette erreur j">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761885507951" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="BlockLabs&#10;document manager&#10;&#10;Navigation&#10;Dashboard&#10;Upload&#10;Documents&#10;Lassito&#10;&#10;lasssdb4@&lt;file_name&gt;&#10;&#10;Logout&#10;Toggle Sidebar&#10;Document Manager&#10;Upload and annotate documents for processing&#10;&#10;Annotation&#10;Upload Document&#10;Total Documents&#10;0&#10;In Progress&#10;0&#10;Validated&#10;0&#10;Recent Documents&#10;Your recently uploaded documents&#10;&#10;No documents yet. Upload your first document to get started.&#10;&#10;1/2&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Runtime AxiosError&#10;&#10;&#10;Request failed with status code 404&#10;src\contexts\AuthContext.tsx (63:7) @&lt;file_name&gt;&#10;&#10;&#10;  61 |   const getCsrfToken = async () =&gt; {&#10;  62 |     try {&#10;&gt; 63 |       await axiosInstance.get(&quot;/api/rawdocs/csrf/&quot;);&#10;     |       ^&#10;  64 |       // The cookie is now set, no need to return anything&#10;  65 |     } catch (error) {&#10;  66 |       console.error(&quot;Failed to get CSRF token:&quot;, error);&#10;Call Stack&#10;6&#10;&#10;Show 3 ignore-listed frame(s)&#10;async getCsrfToken&#10;src\contexts\AuthContext.tsx (63:7)&#10;async login&#10;src\contexts\AuthContext.tsx (95:5)&#10;async handleSubmit&#10;src\pages\login.tsx (24:26)&#10;1&#10;2&#10;/document-manager/DocumentManagerDashboard&#10;&#10;&#10;&#10;J ai toujours ce souci">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761886637706" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="BlockLabsIA&#10;Navigation&#10;Logout&#10;Toggle Sidebar&#10;Importer un document&#10;Depuis une URL de PDF :&#10;Collez l'URL du PDF à importer&#10;OU&#10;Depuis un fichier local :&#10;Glissez-déposez un fichier PDF ou ZIP ici&#10;&#10;ou cliquez pour sélectionner&#10;&#10;Extraire&#10;&#10;DTC_S020098_PF_N_SPE_50520_EN_3.0&#10;Document importé • 31/10/2025&#10;&#10;Métadonnées&#10;Vue divisée&#10;PDF Original&#10;Éditer les métadonnées&#10;Réextraire&#10;Voir PDF&#10;Ajouter Champ&#10;Titre du document&#10;Auto-extrait&#10;DTC_S020098_PF_N_SPE_50520_EN_3.0&#10;Type de document&#10;Auto-extrait&#10;specifications&#10;Date de publication&#10;Ex: 23 January 2025&#10;Version&#10;3.0&#10;Source&#10;client&#10;Pays&#10;Pays&#10;Langue&#10;Auto-extrait&#10;EN&#10;URL Source&#10;URL du document source&#10;Contexte&#10;Auto-extrait&#10;pharmaceutical&#10;Qualité d'extraction&#10;54%&#10;6 champs sur 9 extraits&#10;&#10;Sauvegarder&#10;Valider&#10;&#10;1/1&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Runtime AxiosError&#10;&#10;&#10;Request failed with status code 500&#10;src\services\documentService.ts (72:5) @&lt;file_name&gt;&#10;&#10;&#10;  70 |     });&#10;  71 |&#10;&gt; 72 |     await api.post('/upload/', formData);&#10;     |     ^&#10;  73 |   },&#10;  74 |&#10;  75 |   // Réextraire métadonnées&#10;Call Stack&#10;5&#10;&#10;Show 3 ignore-listed frame(s)&#10;async Object.updateMetadata&#10;src\services\documentService.ts (72:5)&#10;async handleSave&#10;src\components\document\MetadataForm.tsx (47:7)&#10;1&#10;2&#10;/document-manager/upload&#10;&#10;&#10;La sauvvegarde ne marche toujours pas et surtout l affichage dans View ne marche non plus">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761911869430" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="BlockLabsIA&#10;Navigation&#10;Logout&#10;Toggle Sidebar&#10;Importer un document&#10;Depuis une URL de PDF :&#10;Collez l'URL du PDF à importer&#10;OU&#10;Depuis un fichier local :&#10;Glissez-déposez un fichier PDF ou ZIP ici&#10;&#10;ou cliquez pour sélectionner&#10;&#10;Extraire&#10;&#10;DTC_S020098_PF_N_SPE_50520_EN_3.0&#10;Document importé • 31/10/2025&#10;&#10;Métadonnées&#10;Vue divisée&#10;PDF Original&#10;Éditer les métadonnées&#10;Réextraire&#10;Voir PDF&#10;Ajouter Champ&#10;Titre du document&#10;Auto-extrait&#10;DTC_S020098_PF_N_SPE_50520_EN_3.0&#10;Type de document&#10;Auto-extrait&#10;specifications&#10;Date de publication&#10;Ex: 23 January 2025&#10;Version&#10;3.0&#10;Source&#10;client&#10;Pays&#10;Pays&#10;Langue&#10;Auto-extrait&#10;en&#10;URL Source&#10;URL du document source&#10;Contexte&#10;Auto-extrait&#10;pharmaceutical&#10;Qualité d'extraction&#10;54%&#10;6 champs sur 9 extraits&#10;&#10;Sauvegarder&#10;Valider&#10;&#10;1/1&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Runtime AxiosError&#10;&#10;&#10;Request failed with status code 405&#10;src\services\documentService.ts (72:5) @&lt;file_name&gt;&#10;&#10;&#10;  70 |     });&#10;  71 |&#10;&gt; 72 |     await api.post('/upload/', formData);&#10;     |     ^&#10;  73 |   },&#10;  74 |&#10;  75 |   // Réextraire métadonnées&#10;Call Stack&#10;5&#10;&#10;Show 3 ignore-listed frame(s)&#10;async Object.updateMetadata&#10;src\services\documentService.ts (72:5)&#10;async handleSave&#10;src\components\document\MetadataForm.tsx (47:7)&#10;1&#10;2&#10;/document-manager/upload&#10;&#10;&#10;J ai toujours cette erreur pour sauvegarder les metadonnéees extraites et les afficher dans views">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761911615158" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="BlockLabsIA&#10;Navigation&#10;Logout&#10;Toggle Sidebar&#10;Retour&#10;Erreur&#10;&#10;Erreur lors du chargement du document&#10;&#10;&#10;1/1&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Runtime TypeError&#10;&#10;&#10;Cannot read properties of null (reading 'cookie')&#10;src\pages\annotation\view\[id].tsx (32:37) @&lt;file_name&gt;&#10;&#10;&#10;  30 |     if (typeof window !== 'undefined') {&#10;  31 |       const getCookie = (name: string) =&gt; {&#10;&gt; 32 |         const value = `; ${document.cookie}`;&#10;     |                                     ^&#10;  33 |         const parts = value.split(`; ${name}=`);&#10;  34 |         if (parts.length === 2) return parts.pop()?.split(';').shift();&#10;  35 |         return null;&#10;Call Stack&#10;6&#10;&#10;Show 2 ignore-listed frame(s)&#10;DocumentMetadataView.use.getCookie&#10;src\pages\annotation\view\[id].tsx (32:37)&#10;DocumentMetadataView.use&#10;src\pages\annotation\view\[id].tsx (37:25)&#10;async fetchDocument&#10;src\pages\annotation\view\[id].tsx (58:24)&#10;async fetchDocument&#10;src\pages\annotation\view\[id].tsx (58:24)&#10;1&#10;2&#10;/annotation/view/15&#10;&#10;&#10;Il ya toujours un souci avec ca">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761908771820" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="Continuez">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="2.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761989403395" />
+                  <option value="1761880592721" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="Dans la fonction validate document dans views py de expert il ya des erreurs resolvez les">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761991426274" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="Dans la liste des metadonnées extraites  quand on clique sur View on peut voir que le titre du document mais les autres metadonnées s affichent pas je veux les afficher aussi">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761911213513" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="Dans views py de expert et rawdocs il ya des erreur de syntaxes revoyez et les imports mettez les tous dans un seul et meme endroit en haut">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761990620450" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="En fait il ya un petit souci que je veux regler c'est que quand j uploade un document et que je l exttrait je vois pas la liste des documents quand je clique sur la liste des document il ya une erreur 404 maintenant revoyez dans les urls api_urls la ligne 43 et essayez de voir dans api_views pour resoudre ce souci une fois que je valide le document je veux qu'il soit dans la liste des documents en cliquant sur Liste des document dans dashboard de document manager je vois la liste des document extrait">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761884777684" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="En fait j'ai une question pour quoi quand je me connecte en tant que admin je peux acceder aux documents ou aux annotations et c'est a dire ce qui est sur la Sidebar dans la partie admin j arrive pas a voir accées j ai des erreurs 404">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1762029979441" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="En fait je n ai aucun erreur dans  les logs la page se fige sur Loading document mais rien nje se passe">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761889896233" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="En fait je regarde dans les routes api_urls authentification il ya  une route csrf et aussi api urls de rawds il ya une route csrf faut resoudre ce probleme et laissez le que dans authentification et faites la liaison avec le frontend">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761992585187" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="J ai plus l erreur mais j arrive plus a login quand je met le compte ca met Login faiuled ou registrayion failed">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761888347002" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="J'ai toujours des erreurs en fait moi je veux juste afficher les metadonnées extraites et validés je veux les afficher  dans la prtie View">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761909093017" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="J'ai un souci en fait pourquoi quand je clique sur Annotation dans DocumentManagerDashboad je vois pas la page de dashboard de Annotation">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761906103027" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="Je veux creer des API endpoints aprtir de s fcts que j'ai dans views rawdocs et les mettre dans api_views de rawdocs et aussi les ajouter dans api_urls mais prenez juste les fonctions pour voir le dashbord de l annotation">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="2.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761881995293" />
+                  <option value="1761880207001" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="Je veux que vous regardez dans mon projet et vous m enlevez tous les refernces a Products Library Submissions et Chatbot Reporting enlevez tout et tout ce qui concerne devmetier aussi parce que j ai suuprimmé la partie Client meme se connecter en tant que client et devmetier faut enlever ca">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761989170954" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="Je veux que vous rentrez dans la partie expert et tout ce qui concerne les refernces envers     from client.products.models import Product, ProductSpecification, ManufacturingSite, ProductVariation&#10;ModuleNotFoundError: No module named 'client'&#10;Supprimez les tout ce qui est Product Submissions Reporting Library">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1762032774281" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="Jusque present la validation marche pas on me donne cette erreur &#10;&#10;django.db.utils.IntegrityError: UNIQUE constraint failed: rawdocs_documentpage.document_id, rawdocs_documentpage.page_number">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1762031164023" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="Okay c'est bon ils marchent tous sauf Annotation il me met cette erreur quand je  clique &#10;&#10;&#10;&#10;1/1&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Build Error&#10;&#10;Module not found: Can't resolve '@&lt;file_name&gt;&#10;./src/components/ui/checkbox.tsx (2:1)&#10;&#10;Module not found: Can't resolve '@&lt;file_name&gt;&#10;  1 | import * as React from &quot;react&quot;;&#10;&gt; 2 | import * as CheckboxPrimitive from &quot;@&lt;file_name&gt;&#10;    | ^&#10;  3 | import { Check } from &quot;lucide-react&quot;;&#10;  4 |&#10;  5 | import { cn } from &quot;@&lt;file_name&gt;&#10;&#10;https://nextjs.org/docs/messages/module-not-found&#10;&#10;Import trace for requested module:&#10;./src/pages/admin/AnnotationManagement.tsx&#10;1&#10;2">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1762030713606" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="Okay c'est bon la page s'affiche ce que je veux c'est que vous voyez dans api_views s'il y a la fct sauvegarder les metadonnéees sinon vous pouvez le recuperer de views py dans rawdocs et l ajouter dans api_views pui dans api_urls py et une foiis cela je veux que dans Upload quand j upload et que je clique sur sauvegarder les meadata sont sauvegardé et une fois que je clique sur View dans Annotation Dashboard on me montre les metadat sauvegardé et surtout aussi rajoutez un bouton View devant chaque document dans la liste des document DocumentManagerDashboard">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761910545893" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="Okay la sauvegarde marche mais dans View je vois pas les informations sauvegardées">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761912149179" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="Okay maintenant c'est DocumentManagerDashboard &#10;&#10;&#10;BlockLabs&#10;document manager&#10;&#10;Navigation&#10;Dashboard&#10;Upload&#10;Documents&#10;Lassito&#10;&#10;lasssdb4@&lt;file_name&gt;&#10;&#10;Logout&#10;Toggle Sidebar&#10;Document Manager&#10;Upload and annotate documents for processing&#10;&#10;Annotation&#10;Upload Document&#10;Total Documents&#10;0&#10;In Progress&#10;0&#10;Validated&#10;0&#10;Recent Documents&#10;Your recently uploaded documents&#10;&#10;No documents yet. Upload your first document to get started.&#10;&#10;1/1&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Runtime TypeError&#10;&#10;&#10;setDocuments is not a function&#10;src\pages\document-manager\DocumentManagerDashboard.tsx (22:7) @&lt;file_name&gt;&#10;&#10;&#10;  20 |     try {&#10;  21 |       const docs = await documentService.listDocuments();&#10;&gt; 22 |       setDocuments(docs);&#10;     |       ^&#10;  23 |     } catch (error) {&#10;  24 |       console.error('Error fetching documents:', error);&#10;  25 |     } finally {&#10;Call Stack&#10;1&#10;&#10;fetchDocuments&#10;src\pages\document-manager\DocumentManagerDashboard.tsx (22:7)&#10;1&#10;2&#10;/document-manager/DocumentManagerDashboard">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761888605169" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="Okay maintenant ca marche les validation ce que je veux c'est que une fois validé quand je clique sur Annotation je peux voir le document validé et commencer l annotation en cliquant sur le bouton Annoter devant le ficheir dans la liste des documents de l annotation">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761889124964" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="Okay maintenant la liste des document marche je veux maintenant resoudre la validation une fois l extraction faite &#10;&#10;&#10;BlockLabs&#10;document manager&#10;&#10;Navigation&#10;Dashboard&#10;Upload&#10;Documents&#10;Lassito&#10;&#10;lasssdb4@&lt;file_name&gt;&#10;&#10;Logout&#10;Toggle Sidebar&#10;Importer un document&#10;Depuis une URL de PDF :&#10;Collez l'URL du PDF à importer&#10;OU&#10;Depuis un fichier local :&#10;Glissez-déposez un fichier PDF ou ZIP ici&#10;&#10;ou cliquez pour sélectionner&#10;&#10;Extraire&#10;&#10;INTERNATIONAL CONFERENCE ON HARMONISATION OF TECHNICAL&#10;Document importé • 31/10/2025&#10;&#10;Métadonnées&#10;Vue divisée&#10;PDF Original&#10;Éditer les métadonnées&#10;Réextraire&#10;Voir PDF&#10;Ajouter Champ&#10;Titre du document&#10;Auto-extrait&#10;INTERNATIONAL  CONFERENCE  ON  HARMONISATION  OF  TECHNICAL &#10;Type de document&#10;Auto-extrait&#10;guideline&#10;Date de publication&#10;Auto-extrait&#10;02 June 2006&#10;Version&#10;2&#10;Source&#10;client&#10;Pays&#10;EU&#10;Langue&#10;Auto-extrait&#10;en&#10;URL Source&#10;URL du document source&#10;Contexte&#10;Auto-extrait&#10;pharmaceutical&#10;Qualité d'extraction&#10;71%&#10;8 champs sur 9 extraits&#10;&#10;Sauvegarder&#10;Valider&#10;&#10;1/1&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Runtime AxiosError&#10;&#10;&#10;Request failed with status code 404&#10;src\services\documentService.ts (83:5) @&lt;file_name&gt;&#10;&#10;&#10;  81 |   // Valider document&#10;  82 |   async validateDocument(docId: string): Promise&lt;void&gt; {&#10;&gt; 83 |     await api.post(`/validate/${docId}/`);&#10;     |     ^&#10;  84 |   },&#10;  85 |&#10;  86 |   // Récupérer un document&#10;Call Stack&#10;5&#10;&#10;Show 3 ignore-listed frame(s)&#10;async Object.validateDocument&#10;src\services\documentService.ts (83:5)&#10;async handleValidate&#10;src\components\document\MetadataForm.tsx (77:7)&#10;1&#10;2&#10;/document-manager/upload">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761888816291" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="Okay maintenant la page DocumentManager je veux que quand je clique sur le logo BlockLabsIA ca me retourne vers la page d'acceuil avec la liste des document et dans la barre de navigation Je veux laterale a gauche je veux enlever le bouton Upload Garder le bouton Documents mais quand je me clique ca me retourne vers la liste des documents qui  est deja presentes edans le DocumentManagerDashboard et je veux rajouter le bouton Annotation dans la Sidebar aussi">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761907689082" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="Okay maintenant le csrf est resolu j ai un souci avec le document list &#10;&#10;&#10;BlockLabs&#10;document manager&#10;&#10;Navigation&#10;Dashboard&#10;Upload&#10;Documents&#10;Lassito&#10;&#10;lasssdb4@&lt;file_name&gt;&#10;&#10;Logout&#10;Toggle Sidebar&#10;Document Manager&#10;Upload and annotate documents for processing&#10;&#10;Annotation&#10;Upload Document&#10;Total Documents&#10;0&#10;In Progress&#10;0&#10;Validated&#10;0&#10;Recent Documents&#10;Your recently uploaded documents&#10;&#10;No documents yet. Upload your first document to get started.&#10;&#10;1/1&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Runtime AxiosError&#10;&#10;&#10;Request failed with status code 404&#10;src\services\documentService.ts (115:22) @&lt;file_name&gt;&#10;&#10;&#10;  113 |   // Lister tous les documents (pour Document Manager)&#10;  114 |   async listDocuments(): Promise&lt;RawDocument[]&gt; {&#10;&gt; 115 |     const response = await api.get&lt;{ documents: RawDocument[] }&gt;('/rawdocs/documents/list/');&#10;      |                      ^&#10;  116 |     return response.data.documents;&#10;  117 |   },&#10;  118 | };&#10;Call Stack&#10;5&#10;&#10;Show 3 ignore-listed frame(s)&#10;async Object.listDocuments&#10;src\services\documentService.ts (115:22)&#10;async fetchDocuments&#10;src\pages\document-manager\DocumentManagerDashboard.tsx (21:20)&#10;1&#10;2&#10;/document-manager/DocumentManagerDashboard">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761888484309" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="Okay maintenant que j'ai rajouté les endpoints je veux dans frontend dans les pages document manager deja je veux que DocumentMangerDashboard ait un bouton Annotation">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761883493326" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="Okay super la page s affiche juste maintenant je veux faire quelque chose dans la liste des documents je veux rajouter un bouton devant les documents poour les supprimer et une autre pour les valider c'est a dir des actions quoi la validation doit etre comme la validation qui est faite dans la partié upload et la suppression faut voir la fonction qui permet de supprimer un document dans views py et l ajouter dans api_views py et api_urls et indexer ca dans rawdocs">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761906735693" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="Pourquoi dans api_vieews de authentification le get csrf token ne correspond pas a la route dans api urls de authentiifaction">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="2.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761993062191" />
+                  <option value="1761993005067" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="Pourquoi sur le dashboard quand je clique sur Annotation je vois pas la liste es documents je vois que Loading document... ca">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761889376621" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="Quand j essaie de me connecter ca met Login failed">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761988558695" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="Rajoutez ces boutons de suppression et de validation dans la liste des documents dans DocumentManagerDashboard">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761907094240" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="Voila c'st bon ca marche maintenant ce que je veux faire c'est creer un frontend pour que quand je clique sur View dans la liste des fichiers a annoter sur Annotation Dashboard ca me ramene vers les metadonnéees extraites de ce document ca me les montre">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761908252440" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="annotations={annotations   Dans la ligne 437 il ya une erreur sur annoations  faut revoir ca">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761884421813" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="import type { AxiosResponse } from 'axios';&#10;&#10;Pourquoi j ai une erreur ici">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761886001941" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+        <entry key="rbidden (Origin checking failed - http://localhost:3001 does not match any trusted origins.): /api/auth/login/&#10;Forbidden (Origin checking failed - http://localhost:3001 does not match any trusted origins.): /api/auth/login/&#10;&#10;&#10;Pourquoi j ai ca dans mes logs">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1761993278487" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>

@@ -1,0 +1,222 @@
+{% extends 'client/base.html' %}
+{% load static %}
+
+{% block title %}Matrix Builder - RegX Platform{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/reports.css' %}">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<script>
+window.ALL_FIELDS_DATA = {{ all_fields|safe }};
+window.allFields = {{ all_fields|safe }};
+window.filterOptions = {{ filter_options|safe }};
+</script>
+
+<div class="matrix-builder">
+    <div class="builder-header">
+        <h1 class="builder-title">
+            <i class="material-icons">auto_awesome</i>
+            Matrix Report Builder
+        </h1>
+        <p class="builder-subtitle">
+            Créez des rapports personnalisés avec filtres avancés
+        </p>
+    </div>
+
+    <div class="builder-grid">
+        <div class="column-selector">
+            <!-- Smart Search -->
+            <div class="search-container">
+                <div class="search-header">
+                    <h3><i class="material-icons">search</i>Smart Field Search</h3>
+                    <p class="search-subtitle">{{ all_fields|length }} fields available</p>
+                </div>
+                
+                <div class="search-input-container">
+                    <input type="text" id="field-search" placeholder="Search fields... (e.g. 'product name')" autocomplete="off"/>
+                    <i class="material-icons search-icon">search</i>
+                </div>
+                
+                <div id="search-results" class="search-results">
+                    <div class="search-empty">
+                        <i class="material-icons">lightbulb</i>
+                        <p>Start typing to search through all available fields</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="selector-section" style="display: none;">
+                <div class="selector-title">
+                    <i class="material-icons">view_column</i>
+                    Tous les Champs Disponibles
+                    <span class="field-count">{{ all_fields|length }} champs</span>
+                </div>
+                
+                <div class="unified-field-list">
+                    {% for field in all_fields %}
+                    <div class="field-item" 
+                        data-field="{{ field.name }}" 
+                        data-type="{{ field.type }}"
+                        data-count="{{ field.data_count }}">
+                        <div class="field-icon {{ field.type }}">
+                            <i class="material-icons">label</i>
+                        </div>
+                        <div class="field-info">
+                            <div class="field-name">{{ field.label }}</div>
+                            <div class="field-description">{{ field.description }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="filter-section" id="dynamic-filters">
+            <div class="selector-title">
+                <i class="material-icons">tune</i>
+                Filtres Dynamiques
+                <span class="filter-count" id="filter-count">0 filtres</span>
+            </div>
+            
+            <div class="filter-group">
+                <label>📅 Période</label>
+                <select name="period" class="filter-select">
+                    <option value="">Toutes les périodes</option>
+                    {% for period_key, period_label in filter_options.periods %}
+                    <option value="{{ period_key }}">{{ period_label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div id="column-specific-filters"></div>
+            
+            <button class="btn btn-secondary" id="clear-filters" style="display: none;">
+                <i class="material-icons">clear_all</i>
+                Effacer Filtres
+            </button>
+        </div>
+    </div>
+    
+    <div class="matrix-preview">
+        <div class="preview-header">
+            <div class="preview-title">
+                <i class="material-icons">table_chart</i>
+                Matrix de Données Réelles
+            </div>
+            <div class="preview-actions">
+                <button class="generate-button" disabled>
+                    <i class="material-icons">auto_awesome</i>
+                    Sélectionnez des colonnes
+                </button>
+            </div>
+        </div>
+        
+        <div class="matrix-table-container">
+            <div class="empty-state">
+                <i class="material-icons">view_column</i>
+                <h3>Chargement des colonnes...</h3>
+                <p>Les champs disponibles sont en cours de chargement</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% csrf_token %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/reports.js' %}"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('field-search');
+    const searchResults = document.getElementById('search-results');
+    const allFields = window.ALL_FIELDS_DATA || [];
+    
+    function performSearch(query) {
+        if (!query || query.length < 2) {
+            searchResults.innerHTML = `
+                <div class="search-empty">
+                    <i class="material-icons">lightbulb</i>
+                    <p>Start typing to search through all available fields</p>
+                </div>
+            `;
+            return;
+        }
+        
+        const matches = allFields.filter(field => 
+            field.label.toLowerCase().includes(query.toLowerCase()) ||
+            field.name.toLowerCase().includes(query.toLowerCase()) ||
+            field.description.toLowerCase().includes(query.toLowerCase())
+        );
+        
+        if (matches.length === 0) {
+            searchResults.innerHTML = `
+                <div class="search-empty">
+                    <i class="material-icons">search_off</i>
+                    <p>No fields found for "${query}"</p>
+                </div>
+            `;
+            return;
+        }
+        
+        const resultsHtml = matches.map(field => `
+            <div class="field-item search-result" 
+                 data-field="${field.name}" 
+                 data-type="${field.type}">
+                <div class="field-icon ${field.type}">
+                    <i class="material-icons">label</i>
+                </div>
+                <div class="field-info">
+                    <div class="field-name">${field.label}</div>
+                    <div class="field-description">${field.description}</div>
+                </div>
+            </div>
+        `).join('');
+        
+        searchResults.innerHTML = resultsHtml;
+        
+        // Add click listeners to search results
+        document.querySelectorAll('.search-result').forEach(item => {
+            item.addEventListener('click', function() {
+                const fieldName = this.dataset.field;
+                const fieldType = this.dataset.type;
+                
+                // Find the corresponding hidden field and click it
+                const hiddenField = document.querySelector(`.unified-field-list .field-item[data-field="${fieldName}"]`);
+                if (hiddenField) {
+                    hiddenField.click();
+                }
+                
+                // Clear search
+                searchInput.value = '';
+                performSearch('');
+            });
+        });
+    } // This closing brace was missing
+    
+    searchInput.addEventListener('input', function(e) {
+        performSearch(e.target.value.trim());
+    });
+    
+    // X button handler
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('remove') && e.target.closest('.column-chip')) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const chip = e.target.closest('.column-chip');
+            const fieldName = chip.dataset.field;
+            
+            // Find the field item and simulate clicking it to remove
+            const fieldItem = document.querySelector(`.unified-field-list .field-item[data-field="${fieldName}"]`);
+            if (fieldItem) {
+                fieldItem.click();
+            }
+        }
+    });
+});
+</script>
+{% endblock %}
