@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { MetadataForm } from './MetadataForm';
+import { StructuredContentEditor } from './StructuredContentEditor';
 import { RawDocument } from '@/types/document';
 import { ArrowLeft, FileText, Code } from 'lucide-react';
 
@@ -112,11 +113,17 @@ export const DocumentPreview = ({ document, onBackToList }: DocumentPreviewProps
 
         {/* ==================== TAB 2: STRUCTURED CONTENT ==================== */}
         <TabsContent value="structured">
-          <Card>
-            <CardHeader>
-              <CardTitle>Contenu Structuré</CardTitle>
+          <Card className="border-0 shadow-lg">
+            <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 border-b">
+              <CardTitle className="text-xl flex items-center gap-2">
+                <Code className="w-5 h-5 text-blue-600" />
+                Contenu Structuré
+              </CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                Visualisez et éditez le contenu extrait du document
+              </p>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               {loadingStructured ? (
                 // Loading state
                 <div className="flex items-center justify-center p-8">
@@ -126,34 +133,25 @@ export const DocumentPreview = ({ document, onBackToList }: DocumentPreviewProps
                   </div>
                 </div>
               ) : structuredHtml ? (
-                // Structured HTML display
-                <div
-                  className="structured-html-view prose max-w-none"
-                  dangerouslySetInnerHTML={{ __html: structuredHtml }}
-                  style={{
-                    padding: '20px',
-                    background: 'white',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    minHeight: '500px',
-                    maxHeight: '800px',
-                    overflowY: 'auto'
-                  }}
+                // Structured HTML Editor
+                <StructuredContentEditor 
+                  structuredHtml={structuredHtml}
+                  documentId={document.id}
+                  onSave={(newHtml) => setStructuredHtml(newHtml)}
                 />
               ) : (
                 // Empty state
-                <div className="text-center py-8 text-muted-foreground">
-                  <FileText className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                  <p className="text-lg font-medium mb-2">
+                <div className="text-center py-12">
+                  <FileText className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                  <p className="text-lg font-medium text-muted-foreground mb-2">
                     Aucun contenu structuré disponible
                   </p>
-                  <p className="text-sm">
+                  <p className="text-sm text-muted-foreground mb-4">
                     Le contenu structuré n&apos;a pas encore été extrait pour ce document
                   </p>
                   <Button
                     variant="outline"
                     onClick={fetchStructuredHtml}
-                    className="mt-4"
                   >
                     Recharger le contenu
                   </Button>

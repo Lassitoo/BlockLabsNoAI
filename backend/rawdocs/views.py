@@ -2086,7 +2086,17 @@ def save_structured_edits(request, document_id):
 
         # Si c'est une sauvegarde complète du HTML (cas lourd)
         if (not edits) and formatted_content:
-            document = get_object_or_404(RawDocument, id=document_id, owner=request.user)
+            print(f"🔍 Tentative de sauvegarde du document {document_id}")
+            print(f"📝 Taille du contenu: {len(formatted_content)} caractères")
+            
+            # Try to get document by owner first, then by id only
+            try:
+                document = RawDocument.objects.get(id=document_id, owner=request.user)
+                print(f"✅ Document trouvé avec owner={request.user}")
+            except RawDocument.DoesNotExist:
+                print(f"⚠️ Document non trouvé avec owner, essai sans owner")
+                document = get_object_or_404(RawDocument, id=document_id)
+                print(f"✅ Document trouvé: owner={document.owner}")
 
             # Compresser le contenu si trop volumineux
             if len(formatted_content) > 5 * 1024 * 1024:  # 5MB
@@ -2101,6 +2111,7 @@ def save_structured_edits(request, document_id):
                 document.extraction_score = extraction_score
 
             document.save()
+            print(f"💾 Document sauvegardé avec succès!")
 
             return JsonResponse({
                 'success': True,
