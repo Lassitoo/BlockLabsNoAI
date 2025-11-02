@@ -38,7 +38,7 @@ export function AppSidebar() {
       case 'document_manager':
         return '/document-manager';
       case 'expert':
-        return '/expert/evaluation';
+        return '/expert';
       default:
         return '/';
     }
@@ -62,6 +62,7 @@ export function AppSidebar() {
         ];
       case 'expert':
         return [
+          { title: 'Dashboard', url: '/expert', icon: LayoutDashboard },
           { title: 'Evaluation', url: '/expert/evaluation', icon: BarChart3 },
           { title: 'Documents', url: '/expert/documents', icon: BookOpen },
         ];

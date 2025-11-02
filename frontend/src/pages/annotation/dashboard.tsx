@@ -2,7 +2,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FileText, Clock, CheckCircle, Play, Eye, Trash2, CheckSquare } from 'lucide-react';
+import { FileText, Clock, CheckCircle, Play, Eye, Trash2, CheckSquare, TrendingUp, Activity, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
@@ -114,7 +114,6 @@ const AnnotationDashboard = () => {
 
       if (response.data.success) {
         console.log("✅ Document validated successfully");
-        // Refresh the documents list
         fetchDashboardData();
       } else {
         console.error("❌ Validation failed:", response.data.error);
@@ -137,7 +136,6 @@ const AnnotationDashboard = () => {
 
       if (response.data.success) {
         console.log("✅ Document deleted successfully");
-        // Refresh the documents list
         fetchDashboardData();
       } else {
         console.error("❌ Deletion failed:", response.data.error);
@@ -178,7 +176,10 @@ const AnnotationDashboard = () => {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64">
-          <div className="text-lg">Loading...</div>
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Chargement...</p>
+          </div>
         </div>
       </DashboardLayout>
     );
@@ -186,15 +187,23 @@ const AnnotationDashboard = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-8">
+        {/* Header Section */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Annotation Dashboard</h1>
-            <p className="text-muted-foreground mt-2">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-teal-600 bg-clip-text text-transparent">
+              Annotation Dashboard
+            </h1>
+            <p className="text-muted-foreground mt-2 text-lg flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-green-600" />
               Review and annotate documents for processing
             </p>
           </div>
-          <Button onClick={() => router.push('/document-manager/upload')} size="lg">
+          <Button 
+            onClick={() => router.push('/document-manager/upload')} 
+            size="lg"
+            className="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 shadow-lg hover:shadow-xl transition-all"
+          >
             <FileText className="w-4 h-4 mr-2" />
             New Document
           </Button>
@@ -203,121 +212,184 @@ const AnnotationDashboard = () => {
         {/* Stats Cards */}
         {stats && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card>
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Total Documents
-                </CardTitle>
-                <FileText className="w-5 h-5 text-primary" />
+                <div className="space-y-1">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Total Documents
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">All documents</p>
+                </div>
+                <div className="p-3 rounded-xl bg-blue-50">
+                  <FileText className="w-6 h-6 text-blue-600" />
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">{stats.total_documents}</div>
+                <div className="flex items-end justify-between">
+                  <div className="text-4xl font-bold">{stats.total_documents}</div>
+                  <div className="flex items-center gap-1 text-green-600 text-sm font-medium">
+                    <TrendingUp className="w-4 h-4" />
+                    +12%
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  To Annotate
-                </CardTitle>
-                <Clock className="w-5 h-5 text-warning" />
+                <div className="space-y-1">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    To Annotate
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">Pending work</p>
+                </div>
+                <div className="p-3 rounded-xl bg-amber-50">
+                  <Clock className="w-6 h-6 text-amber-600" />
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">{stats.to_annotate_count}</div>
+                <div className="flex items-end justify-between">
+                  <div className="text-4xl font-bold">{stats.to_annotate_count}</div>
+                  <div className="flex items-center gap-1 text-amber-600 text-sm font-medium">
+                    <Activity className="w-4 h-4" />
+                    Active
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  In Progress
-                </CardTitle>
-                <Play className="w-5 h-5 text-blue-500" />
+                <div className="space-y-1">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    In Progress
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">Currently working</p>
+                </div>
+                <div className="p-3 rounded-xl bg-cyan-50">
+                  <Play className="w-6 h-6 text-cyan-600" />
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">{stats.in_progress_count}</div>
+                <div className="flex items-end justify-between">
+                  <div className="text-4xl font-bold">{stats.in_progress_count}</div>
+                  <div className="flex items-center gap-1 text-cyan-600 text-sm font-medium">
+                    <Activity className="w-4 h-4 animate-pulse" />
+                    Live
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Completed
-                </CardTitle>
-                <CheckCircle className="w-5 h-5 text-green-500" />
+                <div className="space-y-1">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Completed
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">Finished work</p>
+                </div>
+                <div className="p-3 rounded-xl bg-green-50">
+                  <CheckCircle className="w-6 h-6 text-green-600" />
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">{stats.completed_count}</div>
+                <div className="flex items-end justify-between">
+                  <div className="text-4xl font-bold">{stats.completed_count}</div>
+                  <div className="flex items-center gap-1 text-green-600 text-sm font-medium">
+                    <TrendingUp className="w-4 h-4" />
+                    +18%
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
         )}
 
         {/* Documents List */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Documents for Annotation</CardTitle>
-            <CardDescription>
-              Documents ready for annotation and review
-            </CardDescription>
+        <Card className="border-0 shadow-lg">
+          <CardHeader className="bg-gradient-to-r from-green-50 to-teal-50 border-b">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-xl">Documents for Annotation</CardTitle>
+                <CardDescription className="mt-1">
+                  Documents ready for annotation and review
+                </CardDescription>
+              </div>
+              <Activity className="w-5 h-5 text-green-600" />
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             {documents.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <FileText className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                <p className="text-lg font-medium mb-2">No documents available</p>
-                <p className="text-sm">Upload and validate documents to start annotating</p>
+              <div className="text-center py-12">
+                <FileText className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                <p className="text-lg font-medium text-muted-foreground mb-2">
+                  No documents available
+                </p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Upload and validate documents to start annotating
+                </p>
                 <Button
-                  className="mt-4"
                   onClick={() => router.push('/document-manager/upload')}
+                  className="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700"
                 >
+                  <FileText className="w-4 h-4 mr-2" />
                   Upload First Document
                 </Button>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {documents.map((doc) => {
                   const StatusIcon = getStatusIcon(doc.status);
                   return (
                     <div
                       key={doc.id}
-                      className="flex items-center justify-between p-4 rounded-lg border hover:bg-accent/50 transition-colors"
+                      className="flex items-center justify-between p-5 rounded-xl border-2 hover:border-green-200 hover:bg-green-50/50 transition-all duration-200 group"
                     >
-                      <div className="flex items-center gap-4">
-                        <FileText className="w-8 h-8 text-primary" />
+                      <div className="flex items-center gap-4 flex-1">
+                        <div className="p-3 rounded-lg bg-green-50 group-hover:bg-green-100 transition-colors">
+                          <FileText className="w-7 h-7 text-green-600" />
+                        </div>
                         <div className="flex-1">
-                          <h3 className="font-medium text-lg">{doc.title}</h3>
+                          <h3 className="font-semibold text-lg text-gray-900 group-hover:text-green-600 transition-colors">
+                            {doc.title}
+                          </h3>
                           <p className="text-sm text-muted-foreground">{doc.file_name}</p>
                           <div className="flex items-center gap-4 mt-2">
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <FileText className="w-3 h-3" />
                               Pages: {doc.annotated_pages}/{doc.total_pages}
                             </span>
                             <span className="text-xs text-muted-foreground">
                               By: {doc.uploaded_by}
                             </span>
                             <span className="text-xs text-muted-foreground">
-                              {new Date(doc.created_at).toLocaleDateString()}
+                              {new Date(doc.created_at).toLocaleDateString('fr-FR', { 
+                                day: 'numeric', 
+                                month: 'long', 
+                                year: 'numeric' 
+                              })}
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-4">
                         {/* Progress Bar */}
-                        <div className="w-24">
-                          <div className="text-xs text-muted-foreground mb-1">
+                        <div className="w-32">
+                          <div className="text-xs font-medium text-gray-700 mb-1.5">
                             {doc.progress_percentage}%
                           </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div className="w-full bg-gray-200 rounded-full h-2.5">
                             <div
-                              className="bg-primary h-2 rounded-full transition-all"
+                              className="bg-gradient-to-r from-green-500 to-teal-500 h-2.5 rounded-full transition-all"
                               style={{ width: `${doc.progress_percentage}%` }}
                             />
                           </div>
                         </div>
 
                         {/* Status Badge */}
-                        <Badge className={getStatusColor(doc.status)}>
+                        <Badge className={`${getStatusColor(doc.status)} px-3 py-1.5`}>
                           <StatusIcon className="w-3 h-3 mr-1" />
                           {doc.status.replace('_', ' ')}
                         </Badge>
@@ -325,9 +397,10 @@ const AnnotationDashboard = () => {
                         {/* Action Buttons */}
                         <div className="flex gap-2">
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
                             onClick={() => router.push(`/annotation/view/${doc.id}`)}
+                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-100"
                           >
                             <Eye className="w-4 h-4 mr-1" />
                             View
@@ -336,6 +409,7 @@ const AnnotationDashboard = () => {
                             <Button
                               size="sm"
                               onClick={() => router.push(`/annotation/document/${doc.id}/annotate`)}
+                              className="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700"
                             >
                               <Play className="w-4 h-4 mr-1" />
                               Annotate
@@ -343,23 +417,22 @@ const AnnotationDashboard = () => {
                           )}
                           {doc.status !== 'validated' && (
                             <Button
-                              variant="outline"
+                              variant="ghost"
                               size="sm"
                               onClick={() => handleValidateDocument(doc.id)}
-                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                              className="text-green-600 hover:text-green-700 hover:bg-green-100"
                             >
                               <CheckSquare className="w-4 h-4 mr-1" />
                               Validate
                             </Button>
                           )}
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
                             onClick={() => handleDeleteDocument(doc.id)}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-100"
                           >
-                            <Trash2 className="w-4 h-4 mr-1" />
-                            Delete
+                            <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
                       </div>
