@@ -28,16 +28,15 @@ export interface RawDocument {
   created_at: string;
   is_validated: boolean;
   structured_html?: string;
+  structured_html_css?: string;
   metadata: DocumentMetadata;
   quality?: DocumentQuality;
   custom_fields?: Record<string, string>;
-
 }
 
 export interface CustomField {
   name: string;
   value: string;
-  type: string;
 }
 
 export interface UploadResponse {

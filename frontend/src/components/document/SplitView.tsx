@@ -23,6 +23,7 @@ interface SplitViewProps {
 
 export const SplitView = ({ doc }: SplitViewProps) => {
   const [structuredHtml, setStructuredHtml] = useState<string>(doc.structured_html || '');
+  const [structuredHtmlCss, setStructuredHtmlCss] = useState<string>(doc.structured_html_css || '');
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -236,6 +237,11 @@ export const SplitView = ({ doc }: SplitViewProps) => {
             />
 
             <div className="h-[700px] overflow-y-auto p-4 bg-background">
+              {/* Inject CSS dynamically if available */}
+              {structuredHtmlCss && (
+                <style dangerouslySetInnerHTML={{ __html: structuredHtmlCss }} />
+              )}
+              
               {isLoading ? (
                 <div className="flex items-center justify-center h-full">
                   <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -249,7 +255,7 @@ export const SplitView = ({ doc }: SplitViewProps) => {
               ) : (
                 <div
                   ref={contentRef}
-                  className={`prose prose-sm max-w-none transition-all ${
+                  className={`pdf-document-container prose prose-sm max-w-none transition-all ${
                     isEditing 
                       ? 'border-2 border-blue-300 rounded-md p-4 bg-blue-50 shadow-lg' 
                       : 'bg-white'

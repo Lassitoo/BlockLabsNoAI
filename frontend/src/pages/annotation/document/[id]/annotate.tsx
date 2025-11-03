@@ -81,6 +81,7 @@ const DocumentAnnotate = () => {
   const [showAiAnnotations, setShowAiAnnotations] = useState(true);
   const [viewMode, setViewMode] = useState<'raw' | 'structured'>('structured');
   const [structuredHtml, setStructuredHtml] = useState<string>('');
+  const [structuredHtmlCss, setStructuredHtmlCss] = useState<string>('');
   const [loadingStructured, setLoadingStructured] = useState(false);
   const [showAddTypeModal, setShowAddTypeModal] = useState(false);
   const [newTypeName, setNewTypeName] = useState('');
@@ -153,6 +154,7 @@ const DocumentAnnotate = () => {
 
       if (data.success) {
         setStructuredHtml(data.structured_html || '');
+        setStructuredHtmlCss(data.structured_html_css || '');
       }
     } catch (error) {
       console.error('Error fetching structured HTML:', error);
@@ -645,20 +647,26 @@ const DocumentAnnotate = () => {
                   <div className="text-lg">Loading structured content...</div>
                 </div>
               ) : structuredHtml ? (
-                <div 
-                  className="structured-html-view"
-                  dangerouslySetInnerHTML={{ __html: structuredHtml }}
-                  onMouseUp={handleTextSelection}
-                  style={{
-                    padding: '20px',
-                    background: 'white',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    minHeight: '500px',
-                    userSelect: 'text',
-                    cursor: 'text'
-                  }}
-                />
+                <>
+                  {/* Inject CSS dynamically if available */}
+                  {structuredHtmlCss && (
+                    <style dangerouslySetInnerHTML={{ __html: structuredHtmlCss }} />
+                  )}
+                  <div 
+                    className="pdf-document-container structured-html-view"
+                    dangerouslySetInnerHTML={{ __html: structuredHtml }}
+                    onMouseUp={handleTextSelection}
+                    style={{
+                      padding: '20px',
+                      background: 'white',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      minHeight: '500px',
+                      userSelect: 'text',
+                      cursor: 'text'
+                    }}
+                  />
+                </>
               ) : (
                 <div className="text-center p-8 text-gray-500">
                   No structured content available for this document.

@@ -1,10 +1,10 @@
 # rawdocs/views.py
-# Replace / consolidate the top imports block with this
 from datetime import datetime, timezone as dt_timezone
 import time
 import os
 import json
 import re
+import uuid
 
 import requests
 from pymongo import MongoClient
@@ -52,11 +52,11 @@ from io import BytesIO
 try:
     _mongo_client = MongoClient(settings.MONGO_URI, serverSelectionTimeoutMS=5000)
     _mongo_coll = _mongo_client[settings.MONGO_DB][settings.MONGO_COLLECTION]
-    print("Mongo ready:", settings.MONGO_URI, settings.MONGO_DB, settings.MONGO_COLLECTION)
+    print("✅ Mongo prêt :", settings.MONGO_URI, settings.MONGO_DB, settings.MONGO_COLLECTION)
 except Exception as e:
     _mongo_client = None
     _mongo_coll = None
-    print("Mongo init failed:", e)
+    print("⚠️ Mongo init KO:", e)
 
 
 # ——— Forms ——————————————————————————————————————————
@@ -79,7 +79,7 @@ class RegisterForm(UserCreationForm):
         ("Annotateur", "Annotateur"),
         ("Expert", "Expert"),
         ("Client", "Client"),
-
+        ("DevMetier", "Dev métier"),
     ], label="Profil")
 
     class Meta:
@@ -124,7 +124,7 @@ def is_expert(user):
 
 
 def is_dev_metier(user):
-    return False
+    return user.groups.filter(name="DevMetier").exists()
 
 
 # ——— Authentication ————————————————————————————————————
@@ -146,7 +146,7 @@ class CustomLoginView(auth_views.LoginView):
             return reverse('rawdocs:annotation_dashboard')
         if user.groups.filter(name='Metadonneur').exists():
             return reverse('rawdocs:dashboard')
-        if False:  # DevMetier group removed
+        if user.groups.filter(name='DevMetier').exists():
             return reverse('rawdocs:dev_metier_dashboard')
         return '/'
 
@@ -171,7 +171,7 @@ def register(request):
                 return redirect('expert:dashboard')  # Expert dashboard
             elif grp == "Client":
                 return redirect('/client/')  # Client dashboard
-            elif False:  # DevMetier group removed
+            elif grp == "DevMetier":
                 return redirect('rawdocs:dev_metier_dashboard')  # dev metier dashboard
             else:
                 return redirect('rawdocs:dashboard')  # Fallback
@@ -432,7 +432,7 @@ def upload_pdf(request):
                 text = extract_full_text(rd.file.path)
 
                 # Générer HTML structuré
-                structured_html = generate_structured_html(rd, request.user)
+                structured_html, structured_html_css = generate_structured_html(rd, request.user)
 
                 # Save extracted metadata to the model
                 if metadata:
@@ -474,6 +474,7 @@ def upload_pdf(request):
                     'metadata': metadata,
                     'extracted_text': text,
                     'structured_html': structured_html,
+                    'structured_html_css': structured_html_css,
                     'edit_form': edit_form,
                     'logs': MetadataLog.objects.filter(document=rd).order_by('-modified_at')
                 })
@@ -505,7 +506,7 @@ def upload_pdf(request):
                                     metadata['source'] = 'client'
 
                                     # Générer HTML structuré
-                                    structured_html = generate_structured_html(rd, request.user)
+                                    structured_html, structured_html_css = generate_structured_html(rd, request.user)
 
                                     # Sauvegarder les métadonnées dans le modèle
                                     if metadata:
@@ -544,6 +545,7 @@ def upload_pdf(request):
                                         'metadata': metadata,
                                         'extracted_text': text,
                                         'structured_html': structured_html,
+                                        'structured_html_css': structured_html_css,
                                         'edit_form': edit_form,
                                         'logs': MetadataLog.objects.filter(document=rd).order_by('-modified_at')
                                     })
@@ -573,7 +575,7 @@ def upload_pdf(request):
                     metadata['source'] = 'client'
 
                     # Générer HTML structuré
-                    structured_html = generate_structured_html(rd, request.user)
+                    structured_html, structured_html_css = generate_structured_html(rd, request.user)
 
                     # Save extracted metadata to the model
                     if metadata:
@@ -615,6 +617,7 @@ def upload_pdf(request):
                         'metadata': metadata,
                         'extracted_text': text,
                         'structured_html': structured_html,
+                        'structured_html_css': structured_html_css,
                         'edit_form': edit_form,
                         'logs': MetadataLog.objects.filter(document=rd).order_by('-modified_at')
                     })
@@ -661,28 +664,34 @@ def generate_structured_html(raw_document, user):
         processor.process_document()
         structured_html = doc.formatted_content or ''
 
+        # Extraire le CSS généré
+        generated_css = ''
+        if hasattr(doc, 'format_info') and doc.format_info:
+            generated_css = getattr(doc.format_info, 'generated_css', '') or ''
+
         # SAUVEGARDER dans RawDocument
         raw_document.structured_html = structured_html
         raw_document.structured_html_generated_at = timezone.now()
         raw_document.structured_html_method = 'document_processor'
         raw_document.structured_html_confidence = 0.0
+        # Sauvegarder aussi le CSS généré dans un champ personnalisé ou en JSON
+        if not hasattr(raw_document, 'structured_html_css'):
+            # Créer un champ temporaire pour stocker le CSS
+            raw_document._structured_html_css = generated_css
         raw_document.save()
 
         print(f"✅ HTML structuré généré et sauvé pour le document {raw_document.id}")
-        return structured_html
+        return structured_html, generated_css
 
     except Exception as e:
         print(f"⚠️ Erreur génération HTML structuré: {e}")
-        return ""
+        return "", ""
 
 
 # Fonction helper pour la validation avec extraction des pages
 def validate_document_with_pages(document):
     """Valide un document et extrait ses pages"""
-    # Vérifier si les pages existent déjà
-    existing_pages = document.pages.count()
-
-    if existing_pages == 0 and not document.pages_extracted:
+    if not document.pages_extracted:
         try:
             from PyPDF2 import PdfReader
             reader = PdfReader(document.file.path)
@@ -709,15 +718,10 @@ def validate_document_with_pages(document):
             print(f"⚠️ Erreur extraction pages: {e}")
             raise e
     else:
-        # Juste marquer comme validé si déjà extrait ou si les pages existent déjà
-        if not document.is_validated:
-            document.is_validated = True
-            document.validated_at = timezone.now()
-            if existing_pages > 0 and not document.pages_extracted:
-                document.pages_extracted = True
-                document.total_pages = existing_pages
-            document.save()
-            print(f"✅ Document {document.id} marqué comme validé (pages déjà extraites)")
+        # Juste marquer comme validé si déjà extrait
+        document.is_validated = True
+        document.validated_at = timezone.now()
+        document.save()
 
 
 @login_required(login_url='rawdocs:login')
@@ -837,12 +841,32 @@ def edit_metadata(request, doc_id):
             'value': custom_value.value
         })
 
+    # Générer le HTML structuré et le CSS
+    structured_html = rd.structured_html or ""
+    structured_html_css = ""
+    if not structured_html:
+        structured_html, structured_html_css = generate_structured_html(rd, request.user)
+    else:
+        # Si le HTML existe déjà, extraire le CSS depuis le document
+        try:
+            from documents.models import Document as DocModel
+            doc = DocModel.objects.filter(
+                original_file=rd.file.name,
+                uploaded_by=rd.owner or request.user
+            ).first()
+            if doc and hasattr(doc, 'format_info') and doc.format_info:
+                structured_html_css = getattr(doc.format_info, 'generated_css', '') or ''
+        except Exception as e:
+            print(f"⚠️ Erreur extraction CSS: {e}")
+
     return render(request, 'rawdocs/edit_metadata.html', {
         'form': form,
         'metadata': metadata,
         'doc': rd,
         'logs': logs,
-        'custom_fields_data': custom_fields_data  # ADD THIS LINE
+        'custom_fields_data': custom_fields_data,
+        'structured_html': structured_html,
+        'structured_html_css': structured_html_css
     })
 
 
@@ -1064,10 +1088,11 @@ def annotate_document(request, doc_id):
         global_analysis = None
 
     # Build reduced, default annotation types + include types already used in this document
-    used_type_ids = Annotation.objects.filter(page__document=document).values_list('annotation_type_id', flat=True).distinct()
+    used_type_ids = Annotation.objects.filter(page__document=document).values_list('annotation_type_id',
+                                                                                   flat=True).distinct()
 
     # Default whitelist (keywords-independent)
-    whitelist = {
+    default_type_names = {
         AnnotationType.REQUIRED_DOCUMENT,
         AnnotationType.AUTHORITY,
         AnnotationType.LEGAL_REFERENCE,
@@ -1076,11 +1101,36 @@ def annotate_document(request, doc_id):
         AnnotationType.VARIATION_CODE,
         AnnotationType.REQUIRED_CONDITION,
         AnnotationType.FILE_TYPE,
+        'regulatory_authority',
+        'legal_instrument',
+        'medicinal_product',
+        'pediatric_investigation_plan',
+        'paediatric_investigation_plan',
+        'waiver',
+        'applicant_organization',
+        'procedural_reference',
+        'pharmaceutical_form',
+        'scientific_committee_opinion',
+        'therapeutic_indication',
     }
 
-    base_qs = AnnotationType.objects.filter(name__in=list(whitelist))
+    base_qs = AnnotationType.objects.filter(name__in=default_type_names)
     used_qs = AnnotationType.objects.filter(id__in=used_type_ids)
     annotation_types = (base_qs | used_qs).distinct().order_by('display_name')
+    annotation_type_ids = annotation_types.values_list('id', flat=True)
+    custom_annotation_types = list(
+        AnnotationType.objects
+        .exclude(id__in=annotation_type_ids)
+        .order_by('display_name')
+        .values('id', 'name', 'display_name', 'color')
+    )
+    manual_annotation_types = list(
+        AnnotationType.objects
+        .filter(id__in=used_type_ids)
+        .exclude(name__in=default_type_names)
+        .order_by('display_name')
+        .values('id', 'name', 'display_name', 'color')
+    )
 
     return render(request, 'rawdocs/annotate_document.html', {
         'document': document,
@@ -1094,9 +1144,11 @@ def annotate_document(request, doc_id):
         'global_analysis': global_analysis,
         'page_analysis': page_obj.regulatory_analysis if page_obj.is_regulatory_analyzed else None,
         'page_summary': page_obj.page_summary,
-        'page_importance_score': page_obj.regulatory_importance_score
+        'page_importance_score': page_obj.regulatory_importance_score,
+        'custom_annotation_types': custom_annotation_types,
+        'custom_annotation_types_json': json.dumps(custom_annotation_types),
+        'manual_annotation_types_json': json.dumps(manual_annotation_types)
     })
-
 
 
 @login_required
@@ -1181,6 +1233,96 @@ def get_page_annotations(request, page_id):
             'page_text': '',
             'total_annotations': 0
         })
+
+
+@login_required
+def add_document_relation(request, doc_id):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+
+    document = get_object_or_404(RawDocument, id=doc_id)
+    if not document.is_accessible_by(request.user):
+        return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
+
+    try:
+        payload = json.loads(request.body.decode('utf-8'))
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON payload'}, status=400)
+
+    source_type = (payload.get('source_type') or '').strip()
+    source_value = (payload.get('source_value') or '').strip()
+    target_type = (payload.get('target_type') or '').strip()
+    target_value = (payload.get('target_value') or '').strip()
+    relation_type = (payload.get('relation_type') or '').strip()
+
+    if not all([source_type, source_value, target_type, target_value, relation_type]):
+        return JsonResponse({'success': False, 'error': 'Champs requis manquants.'}, status=400)
+
+    direction = payload.get('direction') or 'source_to_target'
+    if direction not in {'source_to_target', 'target_to_source', 'bidirectional'}:
+        direction = 'source_to_target'
+
+    try:
+        confidence = float(payload.get('confidence', 0.85))
+    except (TypeError, ValueError):
+        confidence = 0.85
+    confidence = max(0.0, min(1.0, confidence))
+
+    comment = (payload.get('description') or '').strip()
+
+    relation_record = {
+        'id': payload.get('id') or str(uuid.uuid4()),
+        'type': relation_type,
+        'source': {
+            'type': source_type,
+            'value': source_value,
+            'annotation_id': payload.get('source_annotation_id')
+        },
+        'target': {
+            'type': target_type,
+            'value': target_value,
+            'annotation_id': payload.get('target_annotation_id')
+        },
+        'direction': direction,
+        'confidence': confidence,
+        'comment': comment,
+        'description': comment,
+        'created_by': request.user.username,
+        'created_at': timezone.now().isoformat()
+    }
+
+    base_json = document.global_annotations_json or {}
+    relations = base_json.get('relations')
+    if not isinstance(relations, list):
+        relations = []
+    relations.insert(0, relation_record)
+    base_json['relations'] = relations
+
+    # S'assurer que les m&eacute;ta-infos essentielles existent toujours
+    base_json.setdefault('document', {
+        'id': str(document.id),
+        'title': document.title,
+        'total_pages': getattr(document, 'total_pages', None)
+    })
+
+    document.global_annotations_json = base_json
+    document.save(update_fields=['global_annotations_json'])
+
+    return JsonResponse({'success': True, 'relation': relation_record})
+
+
+@login_required
+def get_document_relations(request, doc_id):
+    document = get_object_or_404(RawDocument, id=doc_id)
+    if not document.is_accessible_by(request.user):
+        return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
+
+    base_json = document.global_annotations_json or {}
+    relations = base_json.get('relations')
+    if not isinstance(relations, list):
+        relations = []
+
+    return JsonResponse({'success': True, 'relations': relations})
 
 
 @login_required
@@ -1429,9 +1571,15 @@ def ai_annotate_page_groq(request, page_id):
             pass
 
         saved_count = 0
+        seen_texts = set()
         for ann_data in annotations:
             try:
                 ann_type_name = ann_data.get('type', 'unknown').strip()
+                sel_text = (ann_data.get('text', '') or '')
+                text_key = (sel_text.lower().strip(), ann_type_name)
+                if text_key in seen_texts:
+                    continue
+                seen_texts.add(text_key)
                 ann_type, _ = AnnotationType.objects.get_or_create(
                     name=ann_type_name,
                     defaults={
@@ -1499,6 +1647,7 @@ def ai_annotate_page_groq(request, page_id):
         print(f"GROQ annotation error (page {page_id}): {e}")
         return JsonResponse({'error': f'Erreur GROQ: {str(e)}'}, status=500)
 
+
 @login_required
 @csrf_exempt
 def ai_annotate_document_groq(request, doc_id):
@@ -1556,9 +1705,16 @@ def ai_annotate_document_groq(request, doc_id):
                     pass
 
                 saved_count = 0
+                seen_texts = set()
+
                 for ann_data in annotations:
                     try:
                         ann_type_name = ann_data.get('type', 'unknown').strip()
+                        sel_text = (ann_data.get('text', '') or '')
+                        text_key = (sel_text.lower().strip(), ann_type_name)
+                        if text_key in seen_texts:
+                            continue
+                        seen_texts.add(text_key)
                         ann_type, _ = AnnotationType.objects.get_or_create(
                             name=ann_type_name,
                             defaults={
@@ -1623,7 +1779,8 @@ def ai_annotate_document_groq(request, doc_id):
                 print(f"❌ Erreur lors de l'annotation de la page {page.page_number}: {e}")
                 continue
 
-        print(f"✅ Annotation document terminée: {pages_annotated} pages, {total_annotations} annotations with mode={requested_mode}")
+        print(
+            f"✅ Annotation document terminée: {pages_annotated} pages, {total_annotations} annotations with mode={requested_mode}")
 
         return JsonResponse({
             'success': True,
@@ -1636,6 +1793,7 @@ def ai_annotate_document_groq(request, doc_id):
     except Exception as e:
         print(f"❌ Erreur annotation document {doc_id}: {e}")
         return JsonResponse({'error': f'Erreur lors de l\'annotation: {str(e)}'}, status=500)
+
 
 @login_required
 def get_document_status(request, doc_id):
@@ -1988,6 +2146,7 @@ def document_structured(request, document_id):
 
         # Charger/générer HTML structuré
         structured_html = document.structured_html or ''
+        structured_html_css = ''
         method = document.structured_html_method or ''
         confidence = document.structured_html_confidence
         regen = request.GET.get('regen') in ['1', 'true', 'True']
@@ -2015,11 +2174,29 @@ def document_structured(request, document_id):
                 structured_html = doc.formatted_content or ''
                 method = 'document_processor'
                 confidence = None
+
+                # Extraire le CSS généré
+                if hasattr(doc, 'format_info') and doc.format_info:
+                    structured_html_css = getattr(doc.format_info, 'generated_css', '') or ''
             except Exception as e:
                 print(f"⚠️ DocumentProcessor failed: {e}")
                 structured_html = ''
+                structured_html_css = ''
                 method = 'document_processor'
                 confidence = None
+        else:
+            # Si le HTML existe déjà, extraire le CSS depuis le document
+            if structured_html:
+                try:
+                    from documents.models import Document as DocModel
+                    doc = DocModel.objects.filter(
+                        original_file=document.file.name,
+                        uploaded_by=document.owner or request.user
+                    ).first()
+                    if doc and hasattr(doc, 'format_info') and doc.format_info:
+                        structured_html_css = getattr(doc.format_info, 'generated_css', '') or ''
+                except Exception as e:
+                    print(f"⚠️ Erreur extraction CSS: {e}")
 
         # Sauvegarde cache si on a du contenu
         if structured_html:
@@ -2033,6 +2210,7 @@ def document_structured(request, document_id):
         context = {
             'document': document,
             'structured_html': structured_html or '',
+            'structured_html_css': structured_html_css or '',
             'structured_html_method': method,
             'structured_html_confidence': confidence,
             'doc_model_id': getattr(doc, 'id', None),
@@ -2053,6 +2231,7 @@ def document_structured(request, document_id):
         context = {
             'document': document,
             'structured_html': '',
+            'structured_html_css': '',
             'structured_html_method': '',
             'structured_html_confidence': None,
             'error': str(e),
@@ -2086,17 +2265,7 @@ def save_structured_edits(request, document_id):
 
         # Si c'est une sauvegarde complète du HTML (cas lourd)
         if (not edits) and formatted_content:
-            print(f"🔍 Tentative de sauvegarde du document {document_id}")
-            print(f"📝 Taille du contenu: {len(formatted_content)} caractères")
-            
-            # Try to get document by owner first, then by id only
-            try:
-                document = RawDocument.objects.get(id=document_id, owner=request.user)
-                print(f"✅ Document trouvé avec owner={request.user}")
-            except RawDocument.DoesNotExist:
-                print(f"⚠️ Document non trouvé avec owner, essai sans owner")
-                document = get_object_or_404(RawDocument, id=document_id)
-                print(f"✅ Document trouvé: owner={document.owner}")
+            document = get_object_or_404(RawDocument, id=document_id, owner=request.user)
 
             # Compresser le contenu si trop volumineux
             if len(formatted_content) > 5 * 1024 * 1024:  # 5MB
@@ -2111,7 +2280,6 @@ def save_structured_edits(request, document_id):
                 document.extraction_score = extraction_score
 
             document.save()
-            print(f"💾 Document sauvegardé avec succès!")
 
             return JsonResponse({
                 'success': True,
@@ -2640,6 +2808,22 @@ def annotate_document(request, doc_id):
     pnum = int(request.GET.get('page', 1))
     page_obj = get_object_or_404(DocumentPage, document=document, page_number=pnum)
 
+    # Charger le contenu structuré et le CSS
+    structured_html = document.structured_html or ''
+    structured_html_css = ''
+
+    if structured_html:
+        try:
+            from documents.models import Document as DocModel
+            doc = DocModel.objects.filter(
+                original_file=document.file.name,
+                uploaded_by=document.owner
+            ).first()
+            if doc and hasattr(doc, 'format_info') and doc.format_info:
+                structured_html_css = getattr(doc.format_info, 'generated_css', '') or ''
+        except Exception as e:
+            print(f"⚠️ Erreur extraction CSS: {e}")
+
     # Statistiques d'analyse réglementaire
     regulatory_stats = {
         'total_pages': document.total_pages,
@@ -2661,7 +2845,7 @@ def annotate_document(request, doc_id):
                                                                                    flat=True).distinct()
 
     # Default whitelist (keywords-independent)
-    whitelist = {
+    default_type_names = {
         AnnotationType.REQUIRED_DOCUMENT,
         AnnotationType.AUTHORITY,
         AnnotationType.LEGAL_REFERENCE,
@@ -2670,11 +2854,36 @@ def annotate_document(request, doc_id):
         AnnotationType.VARIATION_CODE,
         AnnotationType.REQUIRED_CONDITION,
         AnnotationType.FILE_TYPE,
+        'regulatory_authority',
+        'legal_instrument',
+        'medicinal_product',
+        'pediatric_investigation_plan',
+        'paediatric_investigation_plan',
+        'waiver',
+        'applicant_organization',
+        'procedural_reference',
+        'pharmaceutical_form',
+        'scientific_committee_opinion',
+        'therapeutic_indication',
     }
 
-    base_qs = AnnotationType.objects.filter(name__in=list(whitelist))
+    base_qs = AnnotationType.objects.filter(name__in=default_type_names)
     used_qs = AnnotationType.objects.filter(id__in=used_type_ids)
     annotation_types = (base_qs | used_qs).distinct().order_by('display_name')
+    annotation_type_ids = annotation_types.values_list('id', flat=True)
+    custom_annotation_types = list(
+        AnnotationType.objects
+        .exclude(id__in=annotation_type_ids)
+        .order_by('display_name')
+        .values('id', 'name', 'display_name', 'color')
+    )
+    manual_annotation_types = list(
+        AnnotationType.objects
+        .filter(id__in=used_type_ids)
+        .exclude(name__in=default_type_names)
+        .order_by('display_name')
+        .values('id', 'name', 'display_name', 'color')
+    )
 
     return render(request, 'rawdocs/annotate_document.html', {
         'document': document,
@@ -2683,12 +2892,18 @@ def annotate_document(request, doc_id):
         'annotation_types': annotation_types,
         'existing_annotations': page_obj.annotations.all().order_by('start_pos'),
         'total_pages': document.total_pages,
+        # Contenu structuré avec CSS
+        'structured_html': structured_html,
+        'structured_html_css': structured_html_css,
         # Nouvelles données pour l'analyse réglementaire
         'regulatory_stats': regulatory_stats,
         'global_analysis': global_analysis,
         'page_analysis': page_obj.regulatory_analysis if page_obj.is_regulatory_analyzed else None,
         'page_summary': page_obj.page_summary,
-        'page_importance_score': page_obj.regulatory_importance_score
+        'page_importance_score': page_obj.regulatory_importance_score,
+        'custom_annotation_types': custom_annotation_types,
+        'custom_annotation_types_json': json.dumps(custom_annotation_types),
+        'manual_annotation_types_json': json.dumps(manual_annotation_types)
     })
 
 
@@ -3078,6 +3293,13 @@ def generate_document_annotation_summary(request, doc_id):
             'entities': global_entities,
             'generated_at': datetime.utcnow().isoformat() + 'Z',
         }
+        # Conserver les relations existantes saisies manuellement
+        existing_relations = []
+        if document.global_annotations_json:
+            rels = document.global_annotations_json.get('relations')
+            if isinstance(rels, list):
+                existing_relations = rels
+        global_json['relations'] = existing_relations
 
         # Résumé global basé uniquement sur les entités/valeurs
         global_summary = generate_entities_based_document_summary(
@@ -3341,7 +3563,7 @@ def dev_metier_document_annotation_json(request, doc_id):
         'annotated_pages': document.pages.filter(annotations__isnull=False).distinct().count(),
         'total_pages': document.total_pages,
     }
-
+    return render(request, 'rawdocs/view_document_annotation_json_devmetier.html', context)
 
 
 @login_required
@@ -3757,7 +3979,11 @@ def clear_page_annotations(request, page_id):
         return JsonResponse({'success': False, 'error': str(e)})
 
 
-
+@login_required
+@user_passes_test(is_dev_metier)
+@csrf_exempt
+def save_document_json_devmetier(request, doc_id):
+    if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'Méthode non autorisée'}, status=405)
 
     try:
@@ -4244,247 +4470,6 @@ def mistral_analyze_document(request, document_id):
             'error': f"Une erreur est survenue: {str(e)}"
         }, status=500)
 
-
-import requests
-import json
-import re
-from django.utils import timezone
-
-def local_llm_annotate_llama(page_text):
-    """
-    Annotation Llama 3.2 - Prompt ultra-simplifié
-    """
-    
-    # PROMPT ULTRA-SIMPLE pour éviter hallucinations
-    prompt = f"""Extract pharmaceutical entities and return ONLY a JSON array.
-
-Document text:
-{page_text}
-
-Extract entities like:
-- dosage: "500 mg", "25 mg/tablet"
-- specification: "95% to 105%", "NMT 0.5%"
-- test: "dissolution", "content uniformity"
-- value: numbers with units
-- batch_info: lot numbers, dates
-
-Return ONLY this format:
-[{{"text":"exact text from doc","type":"dosage","confidence":0.9,"reasoning":"brief"}}]
-
-No code. No explanation. Only JSON array.
-Maximum 30 unique entities.
-
-JSON array:"""
-
-    try:
-        print("🤖 Appel Llama simplifié...")
-        
-        response = requests.post('http://localhost:11434/api/generate', 
-            json={
-                'model': 'llama3.2:3b',
-                'prompt': prompt,
-                'stream': False,
-                'options': {
-                    'temperature': 0.05,       # TRÈS bas
-                    'num_predict': 2000,       # Court pour éviter divagations
-                    'num_ctx': 4096,
-                    'num_gpu': 99,
-                    'num_thread': 1,
-                    'repeat_penalty': 1.3,
-                    'stop': ['\n\nExplanation', 'Note:', 'Please', 'Here'],  # Arrête si explications
-                }
-            },
-            timeout=90
-        )
-        
-        result = response.json()
-        llm_output = result.get('response', '').strip()
-        
-        print(f"📝 Réponse: {len(llm_output)} chars")
-        print(f"🔍 Début: {llm_output[:200]}")
-        
-        # Nettoyer toute explication
-        if 'import ' in llm_output or 'def ' in llm_output or 'Here' in llm_output:
-            print("⚠️ Le modèle a généré du code/texte au lieu de JSON!")
-            # Essayer de trouver le JSON quand même
-            json_start = llm_output.find('[{')
-            if json_start != -1:
-                llm_output = llm_output[json_start:]
-                print(f"✅ JSON trouvé à position {json_start}")
-        
-        llm_output = llm_output.replace('```json', '').replace('```', '').strip()
-        
-        # Chercher JSON
-        start_idx = llm_output.find('[')
-        end_idx = llm_output.rfind(']')
-        
-        print(f"📍 '[' at {start_idx}, ']' at {end_idx}")
-        
-        if start_idx == -1:
-            print("❌ Pas de JSON - le modèle n'a pas suivi les instructions")
-            return []
-        
-        if end_idx == -1 or end_idx <= start_idx:
-            last_brace = llm_output.rfind('}')
-            if last_brace > start_idx:
-                json_str = llm_output[start_idx:last_brace+1] + ']'
-            else:
-                return []
-        else:
-            json_str = llm_output[start_idx:end_idx+1]
-        
-        try:
-            annotations = json.loads(json_str)
-            print(f"🎯 {len(annotations)} annotations")
-            
-            # Déduplication
-            seen = set()
-            unique = []
-            for ann in annotations:
-                if not isinstance(ann, dict):
-                    continue
-                key = (ann.get('text', '').strip().lower(), ann.get('type', '').lower())
-                if key not in seen and key[0] and len(key[0]) > 1:
-                    seen.add(key)
-                    unique.append(ann)
-            
-            annotations = unique[:40]  # Max 40
-            print(f"✅ {len(annotations)} uniques")
-            
-        except json.JSONDecodeError as e:
-            print(f"❌ JSON invalide: {e}")
-            print(f"JSON: {json_str[:300]}")
-            return []
-        
-        # Valider positions
-        validated = []
-        for ann in annotations:
-            if not all(k in ann for k in ['text', 'type']):
-                continue
-            
-            text_to_find = ann['text'].strip()
-            if not text_to_find:
-                continue
-            
-            start = page_text.find(text_to_find)
-            
-            if start == -1:
-                normalized = re.sub(r'\s+', ' ', text_to_find)
-                start = page_text.find(normalized)
-                if start != -1:
-                    text_to_find = normalized
-            
-            if start == -1:
-                start = page_text.lower().find(text_to_find.lower())
-                if start != -1:
-                    text_to_find = page_text[start:start + len(text_to_find)]
-            
-            if start != -1:
-                ann['start_pos'] = start
-                ann['end_pos'] = start + len(text_to_find)
-                ann['selected_text'] = text_to_find
-                ann['confidence'] = ann.get('confidence', 0.8)
-                ann['reasoning'] = ann.get('reasoning', 'extracted')
-                validated.append(ann)
-        
-        print(f"🎉 {len(validated)} validées")
-        return validated
-        
-    except Exception as e:
-        print(f"❌ Erreur: {e}")
-        import traceback
-        traceback.print_exc()
-        return []
-    
-    
-@login_required
-@csrf_exempt
-def local_llm_annotate_page(request, page_id):
-    """Annotation 100% PRIVÉE avec Llama 3.2 local sur RTX 4060"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Méthode POST requise'}, status=405)
-    
-    try:
-        page = get_object_or_404(DocumentPage, id=page_id)
-        page_text = page.raw_text or ""
-        
-        if not page_text.strip():
-            return JsonResponse({'error': 'Page sans texte'}, status=400)
-        
-        print(f"🔍 Annotation locale de la page {page.id} ({len(page_text)} caractères)")
-        
-        # Obtenir les annotations du modèle LOCAL
-        annotations = local_llm_annotate_llama(page_text)
-        
-        if not annotations:
-            return JsonResponse({
-                'success': False,
-                'error': 'Aucune annotation trouvée',
-                'annotations_created': 0
-            })
-        
-        # Sauvegarder dans la base de données
-        saved_count = 0
-        annotation_types = {at.name: at for at in AnnotationType.objects.all()}
-        
-        for ann_data in annotations:
-            try:
-                type_name = ann_data['type'].lower().replace(' ', '_')
-                
-                # Créer le type d'annotation s'il n'existe pas
-                if type_name not in annotation_types:
-                    ann_type = AnnotationType.objects.create(
-                        name=type_name,
-                        display_name=ann_data['type'],
-                        color='#' + format(hash(type_name) % 0xFFFFFF, '06x'),
-                        description=f"Llama 3.2 local: {ann_data['type']}"
-                    )
-                    annotation_types[type_name] = ann_type
-                    print(f"  ➕ Nouveau type créé: {ann_data['type']}")
-                else:
-                    ann_type = annotation_types[type_name]
-                
-                # Créer l'annotation
-                confidence_score = float(ann_data.get('confidence', 0.9)) * 100
-                
-                Annotation.objects.create(
-                    page=page,
-                    annotation_type=ann_type,
-                    start_pos=ann_data['start_pos'],
-                    end_pos=ann_data['end_pos'],
-                    selected_text=ann_data['selected_text'],
-                    confidence_score=confidence_score,
-                    ai_reasoning=ann_data.get('reasoning', 'Llama 3.2 extraction locale'),
-                    created_by=request.user
-                )
-                saved_count += 1
-                
-            except Exception as e:
-                print(f"❌ Erreur sauvegarde annotation: {e}")
-                continue
-        
-        # Marquer la page comme annotée
-        if saved_count > 0:
-            page.is_annotated = True
-            page.annotated_at = timezone.now()
-            page.annotated_by = request.user
-            page.save(update_fields=['is_annotated', 'annotated_at', 'annotated_by'])
-        
-        print(f"✅ {saved_count} annotations sauvegardées")
-        
-        return JsonResponse({
-            'success': True,
-            'annotations_created': saved_count,
-            'message': f'✅ {saved_count} annotations créées (100% privé, RTX 4060)',
-            'method': 'local_llama_3.2'
-        })
-        
-    except Exception as e:
-        print(f"❌ Erreur: {e}")
-        import traceback
-        traceback.print_exc()
-        return JsonResponse({'error': str(e)}, status=500)
-    
 
 from bs4 import BeautifulSoup
 from django.views.decorators.csrf import csrf_protect

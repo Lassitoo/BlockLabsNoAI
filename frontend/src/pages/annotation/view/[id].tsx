@@ -37,6 +37,7 @@ const DocumentMetadataView = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [structuredHtml, setStructuredHtml] = useState<string>('');
+  const [structuredHtmlCss, setStructuredHtmlCss] = useState<string>('');
   const [loadingStructured, setLoadingStructured] = useState(false);
 
   useEffect(() => {
@@ -61,6 +62,7 @@ const DocumentMetadataView = () => {
         const data = await response.json();
         if (data.success) {
           setStructuredHtml(data.structured_html || '');
+          setStructuredHtmlCss(data.structured_html_css || '');
         }
       }
     } catch (error) {
@@ -332,19 +334,25 @@ const DocumentMetadataView = () => {
                 </div>
               </div>
             ) : structuredHtml ? (
-              <div
-                className="structured-html-view prose max-w-none"
-                dangerouslySetInnerHTML={{ __html: structuredHtml }}
-                style={{
-                  padding: '20px',
-                  background: 'white',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px',
-                  minHeight: '500px',
-                  maxHeight: '800px',
-                  overflowY: 'auto'
-                }}
-              />
+              <>
+                {/* Inject CSS dynamically if available */}
+                {structuredHtmlCss && (
+                  <style dangerouslySetInnerHTML={{ __html: structuredHtmlCss }} />
+                )}
+                <div
+                  className="pdf-document-container structured-html-view prose max-w-none"
+                  dangerouslySetInnerHTML={{ __html: structuredHtml }}
+                  style={{
+                    padding: '20px',
+                    background: 'white',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    minHeight: '500px',
+                    maxHeight: '800px',
+                    overflowY: 'auto'
+                  }}
+                />
+              </>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 <FileText className="w-12 h-12 mx-auto mb-4 text-gray-400" />

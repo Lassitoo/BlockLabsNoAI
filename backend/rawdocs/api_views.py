@@ -136,12 +136,13 @@ def upload_metadata(request):
         print(f"  - Type: {response_metadata['type']}")
         print(f"  - Context: {response_metadata['context'][:100] if response_metadata['context'] else 'empty'}...")
 
-        # Generate structured HTML
+        # Generate structured HTML with CSS
         structured_html = ''
-        structured_css = ''
+        structured_html_css = ''
         try:
             from .views import generate_structured_html
-            structured_html, structured_css = generate_structured_html(doc, request.user)
+            structured_html, structured_html_css = generate_structured_html(doc, request.user)
+            print(f"✅ Generated structured HTML with CSS")
         except Exception as e:
             print(f"⚠️ Could not generate structured HTML: {e}")
 
@@ -156,7 +157,7 @@ def upload_metadata(request):
                 },
                 'metadata': response_metadata,
                 'structured_html': structured_html,
-                'structured_css': structured_css
+                'structured_html_css': structured_html_css
             }
         }, status=201)
 
@@ -1564,6 +1565,23 @@ def get_csrf(request):
 
 def serialize_document(document):
     """Serialize RawDocument to JSON-friendly format"""
+    # Extract CSS from structured_html_css field or generate it
+    structured_html_css = ''
+    try:
+        if hasattr(document, '_structured_html_css'):
+            structured_html_css = document._structured_html_css
+        elif document.structured_html:
+            # Try to extract CSS from Document model if exists
+            from documents.models import Document as DocModel
+            doc = DocModel.objects.filter(
+                original_file=document.file.name,
+                uploaded_by=document.owner
+            ).first()
+            if doc and hasattr(doc, 'format_info') and doc.format_info:
+                structured_html_css = getattr(doc.format_info, 'generated_css', '') or ''
+    except Exception as e:
+        print(f"⚠️ Could not extract CSS: {e}")
+    
     return {
         'id': str(document.id),
         'file_name': os.path.basename(document.file.name) if document.file else '',
@@ -1572,6 +1590,7 @@ def serialize_document(document):
         'created_at': document.created_at.isoformat() if document.created_at else '',
         'is_validated': document.is_validated,
         'structured_html': document.structured_html or '',
+        'structured_html_css': structured_html_css,
         'metadata': {
             'title': document.title or '',
             'type': document.doc_type or '',
@@ -1802,9 +1821,10 @@ def api_upload_document(request):
                                     if isinstance(metadata, dict):
                                         metadata['source'] = 'client'
 
-                                    # Generate structured HTML
+                                    # Generate structured HTML with CSS
                                     from .views import generate_structured_html
-                                    structured_html = generate_structured_html(rd, request.user)
+                                    structured_html, structured_html_css = generate_structured_html(rd, request.user)
+                                    rd._structured_html_css = structured_html_css
 
                                     # Save metadata
                                     if metadata and isinstance(metadata, dict):
@@ -1849,9 +1869,10 @@ def api_upload_document(request):
                 if isinstance(metadata, dict):
                     metadata['source'] = 'client'
 
-                # Generate structured HTML
+                # Generate structured HTML with CSS
                 from .views import generate_structured_html
-                structured_html = generate_structured_html(rd, request.user)
+                structured_html, structured_html_css = generate_structured_html(rd, request.user)
+                rd._structured_html_css = structured_html_css
 
                 # Save metadata
                 if metadata and isinstance(metadata, dict):
@@ -2085,20 +2106,37 @@ def api_delete_document(request, doc_id):
 @require_http_methods(["GET"])
 @login_required
 def api_get_structured_html(request, doc_id):
-    """API endpoint to get structured HTML"""
+    """API endpoint to get structured HTML with CSS"""
     document = get_object_or_404(RawDocument, id=doc_id, owner=request.user)
     regen = request.GET.get('regen', '0') == '1'
 
     try:
+        structured_html_css = ''
+        
         if regen or not document.structured_html:
             from .views import generate_structured_html
-            structured_html = generate_structured_html(document, request.user)
+            structured_html, structured_html_css = generate_structured_html(document, request.user)
         else:
             structured_html = document.structured_html
+            # Try to extract CSS from Document model if exists
+            try:
+                if hasattr(document, '_structured_html_css'):
+                    structured_html_css = document._structured_html_css
+                else:
+                    from documents.models import Document as DocModel
+                    doc = DocModel.objects.filter(
+                        original_file=document.file.name,
+                        uploaded_by=document.owner
+                    ).first()
+                    if doc and hasattr(doc, 'format_info') and doc.format_info:
+                        structured_html_css = getattr(doc.format_info, 'generated_css', '') or ''
+            except Exception as e:
+                print(f"⚠️ Could not extract CSS: {e}")
 
         return JsonResponse({
             'success': True,
-            'structured_html': structured_html
+            'structured_html': structured_html,
+            'structured_html_css': structured_html_css
         })
 
     except Exception as e:
