@@ -1,4 +1,4 @@
-// src/types/document.ts
+
 export interface DocumentMetadata {
   title: string;
   type: string;
@@ -21,28 +21,29 @@ export interface DocumentQuality {
 }
 
 export interface RawDocument {
-  id: number;
-  name: string;
+  id: string;
   file_name: string;
   url?: string;
   owner: string;
   created_at: string;
-  uploadedAt: string;
   is_validated: boolean;
-  status: string;
-  total_pages: number;
-  validated_at?: string;
-  pages_extracted: boolean;
-  file_size: number;
   structured_html?: string;
-  metadata?: DocumentMetadata;
+  metadata: DocumentMetadata;
   quality?: DocumentQuality;
+  custom_fields?: Record<string, string>;
+
+}
+
+export interface CustomField {
+  name: string;
+  value: string;
+  type: string;
 }
 
 export interface UploadResponse {
   success: boolean;
   document?: RawDocument;
-  documents?: RawDocument[]; // For ZIP uploads
+  documents?: RawDocument[];
   message?: string;
   error?: string;
   is_zip_upload?: boolean;

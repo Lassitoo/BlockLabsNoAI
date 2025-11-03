@@ -24,10 +24,9 @@ from bs4 import BeautifulSoup
 
 from rawdocs.models import (
     RawDocument, DocumentPage, Annotation, AnnotationType,
-    MetadataFeedback, MetadataLearningMetrics, MetadataLog
+    MetadataFeedback, MetadataLearningMetrics, MetadataLog, CustomField, CustomFieldValue
 )
 from .utils import extract_exif_metadata  # Import your actual function
-
 
 
 # ==================== METADATA UPLOAD & MANAGEMENT ====================
@@ -40,53 +39,53 @@ def upload_metadata(request):
     try:
         pdf_file = request.FILES.get('pdf_file')
         pdf_url = request.POST.get('pdf_url') or request.GET.get('pdf_url')
-        
+
         if not pdf_file and not pdf_url:
             return JsonResponse({
                 'success': False,
                 'error': 'No PDF file or URL provided'
             }, status=400)
-        
+
         # Handle URL download
         if pdf_url and not pdf_file:
             try:
                 response = requests.get(pdf_url, timeout=30)
                 response.raise_for_status()
-                
+
                 filename = pdf_url.split('/')[-1]
                 if not filename.endswith('.pdf'):
                     filename = f"document_{RawDocument.objects.count() + 1}.pdf"
-                
+
                 pdf_file = ContentFile(response.content, name=filename)
             except Exception as e:
                 return JsonResponse({
                     'success': False,
                     'error': f'Failed to download PDF: {str(e)}'
                 }, status=400)
-        
+
         # Create document
         doc = RawDocument.objects.create(
             file=pdf_file,
             owner=request.user,
             is_validated=False
         )
-        
+
         print(f"✅ Document created with ID: {doc.id}")
-        
+
         # Try to extract metadata using the SAME function as Django templates
         metadata = {}
         try:
             if doc.file and doc.file.path:
                 print(f"🔍 Using extract_metadonnees function")
-                
+
                 # Import the actual function used in Django templates
                 from .utils import extract_metadonnees
-                
+
                 # Use the same extraction as your working Django upload
                 extracted = extract_metadonnees(doc.file.path, url="")
-                
+
                 print(f"📦 Extracted metadata: {extracted}")
-                
+
                 if extracted:
                     # Update document fields
                     doc.title = extracted.get('title', '')
@@ -98,15 +97,15 @@ def upload_metadata(request):
                     doc.source = extracted.get('source', '')
                     doc.url_source = extracted.get('url_source', '')
                     doc.country = extracted.get('country', '')
-                    
+
                     # Save the document
                     doc.save()
                     print(f"💾 Document saved")
-                    
+
                     metadata = extracted
                 else:
                     print("⚠️ No metadata extracted")
-                    
+
         except Exception as e:
             print(f"❌ Extraction error: {str(e)}")
             import traceback
@@ -136,7 +135,7 @@ def upload_metadata(request):
         print(f"  - Title: {response_metadata['title']}")
         print(f"  - Type: {response_metadata['type']}")
         print(f"  - Context: {response_metadata['context'][:100] if response_metadata['context'] else 'empty'}...")
-        
+
         # Generate structured HTML
         structured_html = ''
         structured_css = ''
@@ -160,7 +159,7 @@ def upload_metadata(request):
                 'structured_css': structured_css
             }
         }, status=201)
-        
+
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -168,21 +167,22 @@ def upload_metadata(request):
             'success': False,
             'error': str(e)
         }, status=500)
-        
+
+
 @require_http_methods(["GET"])
 @login_required
 def get_document_metadata(request, doc_id):
     """Get metadata for a specific document"""
     try:
         doc = RawDocument.objects.get(id=doc_id)
-        
+
         # Check if user has access
         if not doc.is_accessible_by(request.user):
             return JsonResponse({
                 'success': False,
                 'error': 'Access denied'
             }, status=403)
-        
+
         metadata = {
             'title': doc.title or '',
             'type': doc.doc_type or '',
@@ -198,7 +198,7 @@ def get_document_metadata(request, doc_id):
                 'field_scores': {}
             }
         }
-        
+
         # Get modification history
         history = []
         for log in MetadataLog.objects.filter(document=doc).order_by('-modified_at')[:10]:
@@ -211,7 +211,7 @@ def get_document_metadata(request, doc_id):
                     'username': log.modified_by.username if log.modified_by else 'System'
                 }
             })
-        
+
         return JsonResponse({
             'success': True,
             'data': {
@@ -225,7 +225,7 @@ def get_document_metadata(request, doc_id):
                 'history': history
             }
         })
-        
+
     except RawDocument.DoesNotExist:
         return JsonResponse({
             'success': False,
@@ -241,36 +241,21 @@ def get_document_metadata(request, doc_id):
 
 
 @csrf_exempt
-@require_http_methods(["PUT", "PATCH"])
+@require_http_methods(["PUT", "PATCH", "POST"])
 @login_required
 def update_document_metadata(request, doc_id):
-    """Update metadata for a document"""
+    """Update metadata + custom fields - SANS TOUCHER structured_html"""
     try:
         data = json.loads(request.body)
+        print(f"UPDATE REQUEST for doc {doc_id}")
+        print(f"Data received: {data}")
+
         doc = RawDocument.objects.get(id=doc_id)
-        
-        # Check if user has access
+
         if not doc.is_accessible_by(request.user):
-            return JsonResponse({
-                'success': False,
-                'error': 'Access denied'
-            }, status=403)
-        
-        # Store original AI metadata if first time editing
-        if not doc.original_ai_metadata:
-            doc.original_ai_metadata = {
-                'title': doc.title,
-                'type': doc.doc_type,
-                'context': doc.context,
-                'language': doc.language,
-                'publication_date': doc.publication_date,
-                'version': doc.version,
-                'source': doc.source,
-                'url_source': doc.url_source,
-                'country': doc.country,
-            }
-        
-        # Update fields and log changes
+            return JsonResponse({'success': False, 'error': 'Accès refusé'}, status=403)
+
+        # === 1. Métadonnées standards ===
         field_mapping = {
             'title': 'title',
             'type': 'doc_type',
@@ -282,39 +267,110 @@ def update_document_metadata(request, doc_id):
             'url_source': 'url_source',
             'country': 'country',
         }
-        
+
+        changes_made = []
+
         for frontend_field, model_field in field_mapping.items():
             if frontend_field in data:
-                old_value = getattr(doc, model_field)
-                new_value = data[frontend_field]
-                
-                if old_value != new_value:
-                    # Log the change
+                old_value = getattr(doc, model_field, '') or ''
+                new_value = data[frontend_field] or ''
+
+                print(f"  {frontend_field}: '{old_value}' → '{new_value}'")
+
+                if str(old_value) != str(new_value):
                     MetadataLog.objects.create(
                         document=doc,
                         field_name=frontend_field,
-                        old_value=old_value or '',
-                        new_value=new_value or '',
+                        old_value=str(old_value),
+                        new_value=str(new_value),
                         modified_by=request.user
                     )
-                    
-                    setattr(doc, model_field, new_value)
-        
-        doc.save()
-        
+                    changes_made.append(frontend_field)
+
+                setattr(doc, model_field, new_value)
+
+        # === 2. Champs personnalisés (sans toucher structured_html) ===
+        custom_saved = 0
+        if 'custom_fields' in data:
+            print(f"Custom fields reçus : {len(data['custom_fields'])}")
+            for item in data['custom_fields']:
+                name = item.get('name', '').strip()
+                value = item.get('value', '')
+
+                if not name:
+                    continue
+
+                field, _ = CustomField.objects.get_or_create(name=name, defaults={'field_type': 'text'})
+                obj, created = CustomFieldValue.objects.update_or_create(
+                    document=doc,
+                    field=field,
+                    defaults={'value': value}
+                )
+                action = "créée" if created else "mise à jour"
+                print(f"  Custom '{name}' {action}: '{value}'")
+                custom_saved += 1
+
+        # === 3. Sauvegarde SÉCURISÉE ===
+        update_fields = [v for k, v in field_mapping.items() if k in data]
+        if 'original_ai_metadata' not in [f for f in update_fields] and not doc.original_ai_metadata:
+            update_fields.append('original_ai_metadata')
+
+        if update_fields:
+            doc.save(update_fields=update_fields)
+            print(f"Document #{doc.id} sauvegardé (champs: {update_fields})")
+
+        if custom_saved:
+            print(f"{custom_saved} champ(s) personnalisé(s) sauvegardé(s)")
+
+        # === 4. Rafraîchir + Sérialiser ===
+        doc.refresh_from_db()
+
         return JsonResponse({
             'success': True,
-            'message': 'Metadata updated successfully'
+            'document': serialize_document(doc),
+            'custom_fields': {
+                v.field.name: v.value
+                for v in CustomFieldValue.objects.filter(document=doc)
+            },
+            'message': 'Sauvegarde réussie',
+            'changes': changes_made
         })
-        
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@login_required
+def validate_document(request, doc_id):
+    """Validate a document for annotation"""
+    try:
+        doc = RawDocument.objects.get(id=doc_id)
+
+        if not doc.is_accessible_by(request.user):
+            return JsonResponse({
+                'success': False,
+                'error': 'Access denied'
+            }, status=403)
+
+        doc.is_validated = True
+        doc.validated_at = timezone.now()
+        doc.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Document validated successfully'
+        })
+
     except RawDocument.DoesNotExist:
         return JsonResponse({
             'success': False,
             'error': 'Document not found'
         }, status=404)
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         return JsonResponse({
             'success': False,
             'error': str(e)
@@ -328,22 +384,22 @@ def validate_document(request, doc_id):
     """Validate a document for annotation"""
     try:
         doc = RawDocument.objects.get(id=doc_id)
-        
+
         if not doc.is_accessible_by(request.user):
             return JsonResponse({
                 'success': False,
                 'error': 'Access denied'
             }, status=403)
-        
+
         doc.is_validated = True
         doc.validated_at = timezone.now()
         doc.save()
-        
+
         return JsonResponse({
             'success': True,
             'message': 'Document validated successfully'
         })
-        
+
     except RawDocument.DoesNotExist:
         return JsonResponse({
             'success': False,
@@ -364,18 +420,18 @@ def get_annotation_dashboard_data(request):
     """Get statistics for annotation dashboard"""
     try:
         documents = RawDocument.objects.filter(is_validated=True)
-        
+
         total_documents = documents.count()
         total_pages = documents.aggregate(total=Sum('total_pages'))['total'] or 0
-        
+
         annotated_docs = documents.exclude(
             Q(enriched_annotations_json__isnull=True) | Q(enriched_annotations_json='')
         ).count()
-        
+
         to_annotate = documents.filter(
             Q(enriched_annotations_json__isnull=True) | Q(enriched_annotations_json='')
         ).count()
-        
+
         return JsonResponse({
             'success': True,
             'data': {
@@ -390,7 +446,7 @@ def get_annotation_dashboard_data(request):
                 }
             }
         })
-        
+
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -406,12 +462,12 @@ def get_annotation_documents(request):
     """Get list of documents for annotation"""
     try:
         documents = RawDocument.objects.filter(is_validated=True)
-        
+
         documents_data = []
         for doc in documents:
             file_name = doc.file.name.split('/')[-1] if doc.file else ''
             has_annotations = bool(doc.enriched_annotations_json)
-            
+
             documents_data.append({
                 'id': doc.id,
                 'title': doc.title or 'Sans titre',
@@ -424,14 +480,14 @@ def get_annotation_documents(request):
                 'validated_at': doc.validated_at.isoformat() if doc.validated_at else None,
                 'created_at': doc.created_at.isoformat()
             })
-        
+
         return JsonResponse({
             'success': True,
             'data': {
                 'documents': documents_data
             }
         })
-        
+
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -449,7 +505,7 @@ def get_metadata_learning_data(request):
     """Get metadata learning dashboard data"""
     try:
         feedbacks = MetadataFeedback.objects.all().order_by('created_at')
-        
+
         if not feedbacks.exists():
             return JsonResponse({
                 'success': True,
@@ -458,22 +514,22 @@ def get_metadata_learning_data(request):
                 'field_stats': {},
                 'document_stats': {}
             })
-        
+
         avg_score = (feedbacks.aggregate(avg=Avg('feedback_score'))['avg'] or 0) * 100
         total_feedbacks = feedbacks.count()
-        
+
         first_feedback = feedbacks.first()
         last_feedback = feedbacks.last()
         improvement = 0
-        
+
         if first_feedback and last_feedback and total_feedbacks > 1:
             first_score = first_feedback.feedback_score * 100
             last_score = last_feedback.feedback_score * 100
             if first_score > 0:
                 improvement = ((last_score - first_score) / first_score) * 100
-        
+
         field_stats = defaultdict(lambda: {'correct': 0, 'wrong': 0, 'missed': 0, 'precision': 0})
-        
+
         for feedback in feedbacks:
             corrections = feedback.corrections_made
             for item in corrections.get('kept_correct', []):
@@ -482,12 +538,12 @@ def get_metadata_learning_data(request):
                 field_stats[item['field']]['wrong'] += 1
             for item in corrections.get('missed_fields', []):
                 field_stats[item['field']]['missed'] += 1
-        
+
         for field, stats in field_stats.items():
             total = stats['correct'] + stats['wrong'] + stats['missed']
             if total > 0:
                 stats['precision'] = round((stats['correct'] / total) * 100)
-        
+
         return JsonResponse({
             'success': True,
             'no_data': False,
@@ -499,7 +555,7 @@ def get_metadata_learning_data(request):
             'field_stats': dict(field_stats),
             'document_stats': {}
         })
-        
+
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -520,22 +576,22 @@ def get_expert_dashboard_data(request):
             is_ready_for_expert=True,
             is_expert_validated=False
         )
-        
+
         expert_validated = RawDocument.objects.filter(is_expert_validated=True)
         total = RawDocument.objects.count()
-        
+
         stats = {
             'pending_review': ready_for_review.count(),
             'validated': expert_validated.count(),
             'total_documents': total,
             'validated_percentage': round((expert_validated.count() / total * 100) if total > 0 else 0)
         }
-        
+
         return JsonResponse({
             'success': True,
             'data': {'stats': stats}
         })
-        
+
     except Exception as e:
         return JsonResponse({
             'success': False,
@@ -550,16 +606,16 @@ def get_expert_documents(request):
     try:
         page_number = request.GET.get('page', 1)
         page_size = request.GET.get('page_size', 10)
-        
+
         documents = RawDocument.objects.filter(
             is_ready_for_expert=True
         ).select_related('owner').order_by('-expert_ready_at')
-        
+
         # Pagination
         from django.core.paginator import Paginator
         paginator = Paginator(documents, page_size)
         page_obj = paginator.get_page(page_number)
-        
+
         documents_data = []
         for doc in page_obj:
             total_pages = doc.pages.count()
@@ -569,7 +625,7 @@ def get_expert_documents(request):
                 page__document=doc,
                 is_validated=False
             ).count()
-            
+
             # Get the annotator (user who validated pages)
             annotator_username = 'Non défini'
             validated_page = doc.pages.filter(is_validated_by_human=True).first()
@@ -577,7 +633,7 @@ def get_expert_documents(request):
                 annotator_username = validated_page.validated_by.username
             elif doc.owner:
                 annotator_username = doc.owner.username
-            
+
             documents_data.append({
                 'id': doc.id,
                 'title': doc.title or 'Sans titre',
@@ -595,7 +651,7 @@ def get_expert_documents(request):
                 'is_validated': doc.is_expert_validated,
                 'validated_at': doc.expert_validated_at.isoformat() if doc.expert_validated_at else None
             })
-        
+
         return JsonResponse({
             'success': True,
             'documents': documents_data,
@@ -606,7 +662,7 @@ def get_expert_documents(request):
                 'hasPrevious': page_obj.has_previous()
             }
         })
-        
+
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -672,7 +728,8 @@ def get_document_for_annotation(request, doc_id):
                 'created_at': doc.created_at.isoformat(),
                 'total_pages': len(pages_data),
                 'annotated_pages': doc.pages.filter(is_annotated=True).count(),
-                'progress_percentage': round((doc.pages.filter(is_annotated=True).count() / len(pages_data)) * 100, 1) if len(pages_data) > 0 else 0,
+                'progress_percentage': round((doc.pages.filter(is_annotated=True).count() / len(pages_data)) * 100,
+                                             1) if len(pages_data) > 0 else 0,
                 'validated_at': doc.validated_at.isoformat() if doc.validated_at else None,
                 'metadata': {
                     'title': doc.title,
@@ -688,7 +745,7 @@ def get_document_for_annotation(request, doc_id):
                 'pages': pages_data
             }
         })
-        
+
     except RawDocument.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Document not found'}, status=404)
     except Exception as e:
@@ -777,7 +834,7 @@ def get_document_details(request, doc_id):
     """Get detailed information about a specific document"""
     try:
         doc = RawDocument.objects.get(id=doc_id)
-        
+
         pages = []
         for page in doc.pages.all().order_by('page_number'):
             annotations = page.annotations.all()
@@ -801,7 +858,7 @@ def get_document_details(request, doc_id):
                     'end_pos': ann.end_pos
                 } for ann in annotations]
             })
-        
+
         return JsonResponse({
             'success': True,
             'data': {
@@ -814,7 +871,7 @@ def get_document_details(request, doc_id):
                 }
             }
         })
-        
+
     except RawDocument.DoesNotExist:
         return JsonResponse({
             'success': False,
@@ -1087,7 +1144,7 @@ def ai_annotate_page_api(request, page_id):
         # Check permissions - allow all authenticated users
         user_role = getattr(request.user, 'role', None)
         print(f"🔍 AI Annotate - User: {request.user.username}, Role: {user_role}")
-        
+
         # Allow all authenticated users (document_manager, expert, admin, annotateur)
         # No permission check needed - @login_required handles authentication
 
@@ -1204,7 +1261,7 @@ def ai_annotate_document_api(request, doc_id):
         # Check permissions - allow all authenticated users
         user_role = getattr(request.user, 'role', None)
         print(f"🔍 AI Annotate Document - User: {request.user.username}, Role: {user_role}")
-        
+
         # Allow all authenticated users (document_manager, expert, admin, annotateur)
         # No permission check needed - @login_required handles authentication
 
@@ -1328,6 +1385,7 @@ def ai_annotate_document_api(request, doc_id):
         print(f"❌ Erreur annotation document {doc_id}: {e}")
         return JsonResponse({'error': f'Erreur lors de l\'annotation: {str(e)}'}, status=500)
 
+
 @require_http_methods(["GET"])
 @login_required
 def get_annotation_types(request):
@@ -1423,7 +1481,8 @@ def get_document_annotation_summary(request, doc_id):
             for ann in annotations:
                 type_name = ann.annotation_type.display_name
                 annotation_types[type_name] = annotation_types.get(type_name, 0) + 1
-                summary_data['annotation_types_count'][type_name] = summary_data['annotation_types_count'].get(type_name, 0) + 1
+                summary_data['annotation_types_count'][type_name] = summary_data['annotation_types_count'].get(
+                    type_name, 0) + 1
 
             page_summary = {
                 'page_number': page.page_number,
@@ -1491,6 +1550,7 @@ def submit_document_for_expert_review_api(request, doc_id):
 from django.http import JsonResponse
 from django.views.decorators.csrf import ensure_csrf_cookie
 
+
 @ensure_csrf_cookie
 def get_csrf(request):
     """Simple CSRF endpoint for frontend"""
@@ -1499,9 +1559,7 @@ def get_csrf(request):
     return JsonResponse({"detail": "CSRF cookie set"})
 
 
-
 # ==================== NOUVEAU: UPLOAD SYSTEM ====================
-
 
 
 def serialize_document(document):
@@ -1533,7 +1591,7 @@ def serialize_document(document):
 @require_http_methods(["POST", "PUT", "PATCH", "OPTIONS"])
 def api_upload_document(request):
     """API endpoint for document upload - Supports PDF and ZIP files"""
-    
+
     # Handle CORS preflight
     if request.method == "OPTIONS":
         response = JsonResponse({'status': 'ok'})
@@ -1542,14 +1600,14 @@ def api_upload_document(request):
         response["Access-Control-Allow-Headers"] = "Content-Type, X-CSRFToken"
         response["Access-Control-Allow-Credentials"] = "true"
         return response
-    
+
     # Check authentication
     if not request.user.is_authenticated:
         return JsonResponse({
             'success': False,
             'error': 'Authentication required'
         }, status=401)
-    
+
     try:
         # Check if this is a metadata edit request
         edit_metadata = request.POST.get('edit_metadata') == '1'
@@ -1651,39 +1709,39 @@ def api_upload_document(request):
         pdf_url = request.POST.get('pdf_url', '').strip()
         pdf_file = request.FILES.get('pdf_file')
         validate = request.POST.get('validate') == '1'
-        
+
         print(f"📥 Upload request - URL: {pdf_url}, File: {pdf_file.name if pdf_file else None}")
-        
+
         if not pdf_url and not pdf_file:
             return JsonResponse({
                 'success': False,
                 'error': 'Aucun fichier ou URL fourni'
             }, status=400)
-        
+
         processed_docs = []
         is_zip_upload = False
-        
+
         # Handle URL upload
         if pdf_url:
             try:
                 resp = requests.get(pdf_url, timeout=30)
                 resp.raise_for_status()
-                
+
                 ts = datetime.now().strftime('%Y%m%d_%H%M%S')
                 fn = os.path.basename(pdf_url) or 'document.pdf'
-                
+
                 rd = RawDocument(url=pdf_url, owner=request.user)
                 rd.file.save(os.path.join(ts, fn), ContentFile(resp.content))
                 rd.save()
-                
+
                 # Extract metadata using your existing function
                 from .utils import extract_metadonnees
                 metadata = extract_metadonnees(rd.file.path, rd.url or "")
-                
+
                 # Generate structured HTML using your existing function
                 from .views import generate_structured_html
                 structured_html = generate_structured_html(rd, request.user)
-                
+
                 # Save metadata
                 if metadata and isinstance(metadata, dict):
                     rd.original_ai_metadata = metadata
@@ -1697,29 +1755,29 @@ def api_upload_document(request):
                     rd.language = metadata.get('language', '')
                     rd.url_source = metadata.get('url_source', rd.url or '')
                     rd.save()
-                
+
                 # Validate if requested
                 if validate:
                     from .views import validate_document_with_pages
                     validate_document_with_pages(rd)
-                
+
                 processed_docs.append(rd)
                 print(f"✅ Document from URL uploaded: {rd.id}")
-                
+
             except Exception as e:
                 print(f"❌ URL upload error: {e}")
                 return JsonResponse({
                     'success': False,
                     'error': f'Erreur lors du téléchargement depuis URL: {str(e)}'
                 }, status=500)
-        
+
         # Handle file upload
         elif pdf_file:
             # Check if it's a ZIP
             if pdf_file.name.lower().endswith('.zip'):
                 is_zip_upload = True
                 print(f"📦 Processing ZIP file: {pdf_file.name}")
-                
+
                 try:
                     with zipfile.ZipFile(pdf_file, 'r') as zip_ref:
                         pdf_count = 0
@@ -1727,27 +1785,27 @@ def api_upload_document(request):
                             if file_info.filename.lower().endswith('.pdf'):
                                 pdf_count += 1
                                 print(f"📄 Extracting PDF {pdf_count}: {file_info.filename}")
-                                
+
                                 # Extract PDF
                                 with zip_ref.open(file_info) as pdf_file_obj:
                                     pdf_content = pdf_file_obj.read()
-                                    
+
                                     rd = RawDocument(owner=request.user)
                                     ts = datetime.now().strftime('%Y%m%d_%H%M%S')
                                     fn = os.path.basename(file_info.filename)
                                     rd.file.save(os.path.join(ts, fn), ContentFile(pdf_content))
                                     rd.save()
-                                    
+
                                     # Extract metadata
                                     from .utils import extract_metadonnees
                                     metadata = extract_metadonnees(rd.file.path, "")
                                     if isinstance(metadata, dict):
                                         metadata['source'] = 'client'
-                                    
+
                                     # Generate structured HTML
                                     from .views import generate_structured_html
                                     structured_html = generate_structured_html(rd, request.user)
-                                    
+
                                     # Save metadata
                                     if metadata and isinstance(metadata, dict):
                                         rd.original_ai_metadata = metadata
@@ -1761,40 +1819,40 @@ def api_upload_document(request):
                                         rd.language = metadata.get('language', '')
                                         rd.url_source = metadata.get('url_source', '')
                                         rd.save()
-                                    
+
                                     # Validate if requested
                                     if validate:
                                         from .views import validate_document_with_pages
                                         validate_document_with_pages(rd)
-                                    
+
                                     processed_docs.append(rd)
-                        
+
                         print(f"✅ ZIP processed: {pdf_count} PDFs extracted")
-                
+
                 except zipfile.BadZipFile:
                     return JsonResponse({
                         'success': False,
                         'error': 'Fichier ZIP corrompu ou invalide'
                     }, status=400)
-                
+
             else:
                 # Single PDF
                 print(f"📄 Processing single PDF: {pdf_file.name}")
-                
+
                 rd = RawDocument(owner=request.user)
                 rd.file.save(pdf_file.name, pdf_file)
                 rd.save()
-                
+
                 # Extract metadata
                 from .utils import extract_metadonnees
                 metadata = extract_metadonnees(rd.file.path, "")
                 if isinstance(metadata, dict):
                     metadata['source'] = 'client'
-                
+
                 # Generate structured HTML
                 from .views import generate_structured_html
                 structured_html = generate_structured_html(rd, request.user)
-                
+
                 # Save metadata
                 if metadata and isinstance(metadata, dict):
                     rd.original_ai_metadata = metadata
@@ -1808,15 +1866,15 @@ def api_upload_document(request):
                     rd.language = metadata.get('language', '')
                     rd.url_source = metadata.get('url_source', '')
                     rd.save()
-                
+
                 # Validate if requested
                 if validate:
                     from .views import validate_document_with_pages
                     validate_document_with_pages(rd)
-                
+
                 processed_docs.append(rd)
                 print(f"✅ Single PDF uploaded: {rd.id}")
-        
+
         # Prepare response
         if is_zip_upload:
             return JsonResponse({
@@ -1832,7 +1890,7 @@ def api_upload_document(request):
                 'document': serialize_document(processed_docs[0]) if processed_docs else None,
                 'message': 'Document importé avec succès!'
             })
-    
+
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -1927,17 +1985,17 @@ def list_documents(request):
 def api_reextract_metadata(request, doc_id):
     """API endpoint to reextract metadata"""
     rd = get_object_or_404(RawDocument, id=doc_id, owner=request.user)
-    
+
     try:
         from .utils import extract_metadonnees
         new_metadata = extract_metadonnees(rd.file.path, rd.url or "")
-        
+
         if not isinstance(new_metadata, dict):
             return JsonResponse({
                 'success': False,
                 'error': 'Invalid metadata format'
             }, status=500)
-        
+
         # Update document
         rd.original_ai_metadata = new_metadata
         rd.title = new_metadata.get('title', '')
@@ -1950,12 +2008,12 @@ def api_reextract_metadata(request, doc_id):
         rd.language = new_metadata.get('language', '')
         rd.url_source = new_metadata.get('url_source', rd.url or '')
         rd.save()
-        
+
         return JsonResponse({
             'success': True,
             'metadata': new_metadata
         })
-    
+
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -1974,16 +2032,16 @@ def api_reextract_metadata(request, doc_id):
 def api_validate_document(request, doc_id):
     """API endpoint to validate document"""
     document = get_object_or_404(RawDocument, id=doc_id, owner=request.user)
-    
+
     try:
         from .views import validate_document_with_pages
         validate_document_with_pages(document)
-        
+
         return JsonResponse({
             'success': True,
             'message': 'Document validé avec succès'
         })
-    
+
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -1998,7 +2056,7 @@ def api_validate_document(request, doc_id):
 def api_get_document(request, doc_id):
     """API endpoint to get document details"""
     document = get_object_or_404(RawDocument, id=doc_id, owner=request.user)
-    
+
     return JsonResponse({
         'success': True,
         'document': serialize_document(document)
@@ -2030,19 +2088,19 @@ def api_get_structured_html(request, doc_id):
     """API endpoint to get structured HTML"""
     document = get_object_or_404(RawDocument, id=doc_id, owner=request.user)
     regen = request.GET.get('regen', '0') == '1'
-    
+
     try:
         if regen or not document.structured_html:
             from .views import generate_structured_html
             structured_html = generate_structured_html(document, request.user)
         else:
             structured_html = document.structured_html
-        
+
         return JsonResponse({
             'success': True,
             'structured_html': structured_html
         })
-    
+
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -2056,62 +2114,31 @@ def api_get_structured_html(request, doc_id):
 @require_http_methods(["POST"])
 @login_required
 def api_save_structured_edits(request, doc_id):
-    """API endpoint to save structured HTML edits"""
-    document = get_object_or_404(RawDocument, id=doc_id, owner=request.user)
-    
     try:
+        doc = get_object_or_404(RawDocument, id=doc_id, owner=request.user)
         data = json.loads(request.body)
         edits = data.get('edits', [])
-        
-        if not edits:
-            return JsonResponse({
-                'success': False,
-                'error': 'No edits provided'
-            }, status=400)
-        
-        soup = BeautifulSoup(document.structured_html, 'html.parser')
-        updated_count = 0
-        
+
+        if not doc.structured_html:
+            return JsonResponse({'success': False, 'error': 'No structured HTML'}, status=400)
+
+        soup = BeautifulSoup(doc.structured_html, 'html.parser')
         for edit in edits:
-            element_id = edit.get('element_id')
+            elem_id = edit.get('element_id')
             new_text = edit.get('new_text', '').strip()
-            
-            if not element_id:
-                continue
-            
-            element = soup.find(attrs={'data-element-id': element_id})
-            if element:
-                old_text = element.get_text().strip()
-                element.clear()
-                element.string = new_text
-                updated_count += 1
-                
-                # Log change
-                MetadataLog.objects.create(
-                    document=document,
-                    field_name='edited_text_' + element_id[:200],
-                    old_value=old_text[:2000],
-                    new_value=new_text[:2000],
-                    modified_by=request.user
-                )
-        
-        if updated_count > 0:
-            document.structured_html = str(soup)
-            document.save(update_fields=['structured_html'])
-        
+            if elem_id and (elem := soup.find(id=elem_id)):
+                elem.string.replace_with(new_text)
+
+        doc.structured_html = str(soup)
+        doc.save(update_fields=['structured_html'])
+
+        # RETOUR OBLIGATOIRE
         return JsonResponse({
-            'success': True,
-            'message': f'{updated_count} éléments mis à jour',
-            'updated_count': updated_count
+            'structured_html': doc.structured_html
         })
-    
+
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        }, status=500)
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 @require_http_methods(["GET"])
@@ -2119,36 +2146,32 @@ def api_save_structured_edits(request, doc_id):
 def api_view_original_document(request, doc_id):
     """API endpoint to view original PDF"""
     document = get_object_or_404(RawDocument, id=doc_id, owner=request.user)
-    
+
     if document.file:
         try:
             document.file.seek(0)
             file_content = document.file.read()
-            
+
             if not file_content:
                 return HttpResponse("Le fichier PDF est vide", status=404)
-            
+
             response = HttpResponse(file_content, content_type='application/pdf')
             filename = os.path.basename(document.file.name)
             if not filename.lower().endswith('.pdf'):
                 filename += '.pdf'
-            
+
             response['Content-Disposition'] = f'inline; filename="{filename}"'
             response['X-Frame-Options'] = 'SAMEORIGIN'
             response['Content-Security-Policy'] = "frame-ancestors 'self'"
-            
+
             return response
-        
+
         except Exception as e:
             import traceback
             traceback.print_exc()
             return HttpResponse(f"Erreur: {str(e)}", status=500)
-    
+
     return HttpResponse("No file available", status=404)
-
-
-
-
 
 
 @require_http_methods(["GET"])
@@ -2157,7 +2180,7 @@ def get_annotation_details(request, annotation_id):
     """Get detailed information about an annotation"""
     try:
         annotation = get_object_or_404(Annotation, id=annotation_id)
-        
+
         return JsonResponse({
             'success': True,
             'annotation': {
@@ -2175,27 +2198,28 @@ def get_annotation_details(request, annotation_id):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
+
 @csrf_exempt
 @require_http_methods(["POST"])
-@login_required  
+@login_required
 def edit_annotation(request, annotation_id):
     """Edit an existing annotation"""
     try:
         data = json.loads(request.body)
         annotation = get_object_or_404(Annotation, id=annotation_id)
-        
+
         # Check permissions
         if not (annotation.created_by == request.user or request.user.groups.filter(name='Expert').exists()):
             return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
-            
+
         # Update fields
         if 'selected_text' in data:
             annotation.selected_text = data['selected_text']
         if 'type_id' in data:
             annotation.annotation_type = get_object_or_404(AnnotationType, id=data['type_id'])
-        
+
         annotation.save()
-        
+
         return JsonResponse({
             'success': True,
             'annotation': {
@@ -2207,7 +2231,8 @@ def edit_annotation(request, annotation_id):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
-@csrf_exempt 
+
+@csrf_exempt
 @require_http_methods(["POST"])
 @login_required
 def add_structured_annotation(request):
@@ -2215,7 +2240,7 @@ def add_structured_annotation(request):
     try:
         data = json.loads(request.body)
         page = get_object_or_404(DocumentPage, id=data['page_id'])
-        
+
         annotation = Annotation.objects.create(
             page=page,
             annotation_type_id=data['type_id'],
@@ -2225,33 +2250,34 @@ def add_structured_annotation(request):
             mode='structured',
             created_by=request.user
         )
-        
+
         return JsonResponse({
-            'success': True, 
+            'success': True,
             'annotation_id': annotation.id
         })
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
+
 @csrf_exempt
-@require_http_methods(["POST"]) 
+@require_http_methods(["POST"])
 @login_required
 def sync_page_json(request, page_id):
     """Sync JSON data with page annotations"""
     try:
         data = json.loads(request.body)
         page = get_object_or_404(DocumentPage, id=page_id)
-        
+
         # Get current annotations
         current_annotations = page.annotations.all()
-        
+
         # Update annotations from JSON
         for ann_data in data['annotations']:
             if 'id' in ann_data:
                 # Update existing
                 ann = current_annotations.get(id=ann_data['id'])
                 ann.selected_text = ann_data['text']
-                ann.annotation_type_id = ann_data['type_id'] 
+                ann.annotation_type_id = ann_data['type_id']
                 ann.save()
             else:
                 # Create new
@@ -2261,7 +2287,7 @@ def sync_page_json(request, page_id):
                     annotation_type_id=ann_data['type_id'],
                     created_by=request.user
                 )
-                
+
         return JsonResponse({'success': True})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
@@ -2274,43 +2300,43 @@ def view_original_pdf(request, doc_id):
     try:
         # Get document - allow access for owner, document_manager, expert, and admin
         document = RawDocument.objects.get(id=doc_id)
-        
+
         # Check permissions
         user_role = getattr(request.user, 'role', None)
         is_owner = document.owner == request.user
         is_allowed_role = user_role in ['document_manager', 'expert', 'admin']
-        
+
         if not (is_owner or is_allowed_role):
             return JsonResponse({
                 'success': False,
                 'error': 'Permission denied'
             }, status=403)
-        
+
         # Check if file exists
         if not document.file:
             return JsonResponse({
                 'success': False,
                 'error': 'PDF file not found'
             }, status=404)
-        
+
         # Open and return the PDF file
         from django.http import FileResponse
         import os
-        
+
         file_path = document.file.path
         if not os.path.exists(file_path):
             return JsonResponse({
                 'success': False,
                 'error': 'PDF file not found on disk'
             }, status=404)
-        
+
         # Return the PDF file
         response = FileResponse(open(file_path, 'rb'), content_type='application/pdf')
         # Get filename from the file field
         filename = os.path.basename(document.file.name) if document.file else 'document.pdf'
         response['Content-Disposition'] = f'inline; filename="{filename}"'
         return response
-        
+
     except RawDocument.DoesNotExist:
         return JsonResponse({
             'success': False,

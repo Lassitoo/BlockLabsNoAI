@@ -26,6 +26,7 @@ export const MultiDocumentPreview = ({ documents, onBackToList }: MultiDocumentP
 
   const currentDoc = documents[currentIndex];
 
+
   const navigateDocument = (direction: number) => {
     const newIndex = currentIndex + direction;
     if (newIndex >= 0 && newIndex < documents.length) {
@@ -38,6 +39,7 @@ export const MultiDocumentPreview = ({ documents, onBackToList }: MultiDocumentP
     // Update the document in the list
     documents[currentIndex] = updatedDoc;
   };
+
 
   return (
     <div className="space-y-6">
@@ -78,7 +80,11 @@ export const MultiDocumentPreview = ({ documents, onBackToList }: MultiDocumentP
             {documents.map((doc, index) => (
               <button
                 key={doc.id}
-                onClick={() => setCurrentIndex(index)}
+                onClick={() => {
+                  setCurrentIndex(index);
+                  setActiveView('metadata'); // ← FORCER LE RETOUR AUX MÉTADONNÉES
+                }}
+
                 className={`
                   flex items-center gap-2 px-4 py-2 rounded-lg border transition-all
                   ${
@@ -110,6 +116,7 @@ export const MultiDocumentPreview = ({ documents, onBackToList }: MultiDocumentP
         </CardContent>
       </Card>
 
+
       {/* View Tabs */}
       <Card>
         <CardContent className="p-4">
@@ -130,48 +137,23 @@ export const MultiDocumentPreview = ({ documents, onBackToList }: MultiDocumentP
               <Columns className="w-4 h-4 mr-2" />
               Vue divisée
             </Button>
-            <Button
-              variant={activeView === 'pdf' ? 'default' : 'outline'}
-              onClick={() => setActiveView('pdf')}
-              className="flex-1"
-            >
-              <FileText className="w-4 h-4 mr-2" />
-              PDF Original
-            </Button>
+
           </div>
         </CardContent>
       </Card>
 
       {/* Content Views */}
       {activeView === 'metadata' && (
-        <MetadataForm document={currentDoc} onUpdate={handleUpdate} />
+        <MetadataForm
+          key={currentDoc.id}  // FORCER LE REMOUNT
+          document={currentDoc}
+          onUpdate={handleUpdate}
+        />
       )}
+      {activeView === 'split' && <SplitView doc={currentDoc} />}
 
-      {activeView === 'split' && <SplitView document={currentDoc} />}
 
-      {activeView === 'pdf' && (
-        <Card>
-          <CardContent className="p-0">
-            <div className="h-[800px]">
-              <iframe
-                src={`/rawdocs/view-original/${currentDoc.id}/`}
-                className="w-full h-full border-0"
-                title="PDF Original"
-              />
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
-      {/* Keyboard Navigation Hint */}
-      <Card className="bg-muted/50">
-        <CardContent className="p-4">
-          <p className="text-sm text-muted-foreground text-center">
-            💡 Astuce: Utilisez les touches <kbd className="px-2 py-1 bg-background rounded">←</kbd> et{' '}
-            <kbd className="px-2 py-1 bg-background rounded">→</kbd> pour naviguer entre les documents
-          </p>
-        </CardContent>
-      </Card>
     </div>
   );
 };

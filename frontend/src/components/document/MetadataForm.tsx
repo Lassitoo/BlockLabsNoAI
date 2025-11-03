@@ -1,3 +1,5 @@
+// src/components/document/MetadataForm.tsx
+
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -5,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { RawDocument, DocumentMetadata } from '@/types/document';
 import { documentService } from '@/services/documentService';
 import { toast } from 'sonner';
@@ -22,77 +25,264 @@ import {
   Link as LinkIcon,
   AlignLeft,
   Plus,
+  Check,
+  AlertCircle,
 } from 'lucide-react';
+
+// ========================================
+// INTERFACES
+// ========================================
 
 interface MetadataFormProps {
   document: RawDocument;
   onUpdate?: (updatedDoc: RawDocument) => void;
 }
 
+type SaveStatus = 'idle' | 'saving' | 'success' | 'error';
+
+// ========================================
+// COMPOSANT PRINCIPAL
+// ========================================
+
 export const MetadataForm = ({ document, onUpdate }: MetadataFormProps) => {
+
+  // ========================================
+  // STATE
+  // ========================================
+
   const [metadata, setMetadata] = useState<DocumentMetadata>(document.metadata);
   const [isSaving, setIsSaving] = useState(false);
   const [isReextracting, setIsReextracting] = useState(false);
-  const [customFields, setCustomFields] = useState<Record<string, string>>({});
+  const [customFields, setCustomFields] = useState<Record<string, string>>(document.custom_fields || {});
   const [showAddField, setShowAddField] = useState(false);
   const [newFieldName, setNewFieldName] = useState('');
+  const [hasChanges, setHasChanges] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+
+  // ========================================
+  // EFFECTS
+  // ========================================
+
+  // Recharger les metadonnees et custom fields quand le document change
+  useEffect(() => {
+    console.log('Document props changed, updating local state');
+    console.log('New metadata:', document.metadata);
+    console.log('New custom fields:', document.custom_fields);
+    setMetadata(document.metadata);
+    setCustomFields(document.custom_fields || {});
+    setSaveStatus('idle');
+    setHasChanges(false);
+  }, [document.id, document.metadata, document.custom_fields]);
+
+
+  // Détecter les changements
+  useEffect(() => {
+    const metadataChanged = JSON.stringify(metadata) !== JSON.stringify(document.metadata);
+
+    const docCustom = document.custom_fields || {};
+    let customChanged = false;
+
+    // Vérifier les champs existants (changement même si vide)
+    for (const [key, value] of Object.entries(docCustom)) {
+      if (customFields[key] !== value) {
+        customChanged = true;
+        break;
+      }
+    }
+
+    // Vérifier les nouveaux champs (seulement si valeur non vide)
+    for (const [key, value] of Object.entries(customFields)) {
+      if (!(key in docCustom) && value.trim() !== '') {
+        customChanged = true;
+        break;
+      }
+    }
+
+    const changed = metadataChanged || customChanged;
+
+    console.log('Change detection:', {
+      metadataChanged,
+      customChanged,
+      hasChanges: changed,
+      currentCustomFields: customFields,
+      documentCustomFields: document.custom_fields || {}
+    });
+
+    setHasChanges(changed);
+  }, [
+    metadata,
+    document.metadata,
+    customFields,
+    document.custom_fields
+  ]);
+
+  // ========================================
+  // HANDLERS
+  // ========================================
 
   const handleFieldChange = (field: keyof DocumentMetadata, value: string) => {
+    console.log(`Field modified: ${field} = "${value}"`);
     setMetadata(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      await documentService.updateMetadata(document.id, metadata);
-      toast.success('Métadonnées sauvegardées avec succès!');
-      
-      if (onUpdate) {
-        onUpdate({ ...document, metadata });
-      }
-    } catch (error: any) {
-      console.error('Save error:', error);
-      toast.error(error.response?.data?.error || 'Erreur lors de la sauvegarde');
-    } finally {
-      setIsSaving(false);
-    }
+  const handleCustomFieldChange = (fieldName: string, value: string) => {
+    console.log(`Custom field modified: ${fieldName} = "${value}"`);
+    setCustomFields(prev => ({ ...prev, [fieldName]: value }));
   };
 
-  const handleReextract = async () => {
-    setIsReextracting(true);
+  const handleSave = async () => {
+    if (!hasChanges) {
+      toast.info('Aucune modification à sauvegarder');
+      return;
+    }
+
+    console.group('Sauvegarde des métadonnées + custom fields');
+    console.log('Document ID:', document.id);
+    console.log('Métadonnées standards:', metadata);
+    console.log('Custom fields:', Object.entries(customFields).map(([k, v]) => ({ name: k, value: v })));
+
+    setIsSaving(true);
+    setSaveStatus('saving');
+
     try {
-      const newMetadata = await documentService.reextractMetadata(document.id);
-      setMetadata(newMetadata);
-      toast.success('Métadonnées réextraites avec succès!');
+      const payload = {
+        ...metadata,
+        custom_fields: Object.entries(customFields).map(([name, value]) => ({
+          name,
+          value: value.trim()
+        }))
+      };
+
+      const updatedDocument = await documentService.updateMetadata(document.id, payload);
+
+      toast.success('Sauvegarde réussie !', {
+        description: 'Métadonnées et champs personnalisés enregistrés',
+      });
+
+      setHasChanges(false);
+      setLastSaved(new Date());
+      setSaveStatus('success');
+
+      if (onUpdate) onUpdate(updatedDocument);
+
     } catch (error: any) {
-      console.error('Reextract error:', error);
-      toast.error(error.response?.data?.error || 'Erreur lors de la réextraction');
+      console.error('Échec sauvegarde :', error);
+      toast.error('Échec de la sauvegarde', {
+        description: error.response?.data?.error || 'Erreur inconnue',
+      });
+      setSaveStatus('error');
+    } finally {
+      setIsSaving(false);
+      console.groupEnd();
+    }
+  };
+  const handleReextract = async () => {
+    console.group('REEXTRACTION DES METADONNEES');
+    console.log('Document ID:', document.id);
+
+    setIsReextracting(true);
+
+    try {
+      const loadingToast = toast.loading('Reextraction en cours...');
+
+      const newMetadata = await documentService.reextractMetadata(document.id);
+
+      console.log('New metadata extracted:', newMetadata);
+
+      toast.dismiss(loadingToast);
+
+      setMetadata(newMetadata);
+      setHasChanges(false);
+
+      const freshDocument = await documentService.getDocument(document.id, true);
+      if (onUpdate) {
+        onUpdate(freshDocument);
+      }
+
+      toast.success('Metadonnees reextraites', {
+        description: 'Les metadonnees ont ete mises a jour avec succes',
+        duration: 3000,
+      });
+
+    } catch (error: any) {
+      console.error('REEXTRACTION ERROR:', error);
+
+      const errorMessage = error.response?.data?.error || 'Erreur lors de la reextraction';
+      toast.error('Echec de la reextraction', {
+        description: errorMessage,
+        duration: 5000,
+      });
     } finally {
       setIsReextracting(false);
+      console.groupEnd();
     }
   };
 
   const handleValidate = async () => {
+    console.group('VALIDATION DU DOCUMENT');
+    console.log('Document ID:', document.id);
+
     try {
+      const loadingToast = toast.loading('Validation en cours...');
+
       await documentService.validateDocument(document.id);
-      toast.success('Document validé avec succès!');
-      
+
+      console.log('Document validated successfully');
+
+      toast.dismiss(loadingToast);
+
+      toast.success('Document valide', {
+        description: 'Le document est maintenant disponible pour annotation',
+        duration: 3000,
+      });
+
       if (onUpdate) {
-        onUpdate({ ...document, is_validated: true });
+        const freshDocument = await documentService.getDocument(document.id, true);
+        onUpdate(freshDocument);
       }
+
     } catch (error: any) {
-      console.error('Validate error:', error);
-      toast.error(error.response?.data?.error || 'Erreur lors de la validation');
+      console.error('VALIDATION ERROR:', error);
+
+      const errorMessage = error.response?.data?.error || 'Erreur lors de la validation';
+      toast.error('Echec de la validation', {
+        description: errorMessage,
+        duration: 5000,
+      });
+    } finally {
+      console.groupEnd();
     }
   };
 
+  // Dans handleAddCustomField()
   const handleAddCustomField = () => {
-    if (newFieldName.trim()) {
-      setCustomFields(prev => ({ ...prev, [newFieldName]: '' }));
-      setNewFieldName('');
-      setShowAddField(false);
+    const trimmedName = newFieldName.trim();
+    if (!trimmedName) return;
+
+    // Vérifie si le champ existe déjà
+    if (customFields[trimmedName]) {
+      toast.error('Champ déjà existant', {
+        description: `Le champ "${trimmedName}" existe déjà.`,
+      });
+      return;
     }
+
+    console.log('Adding custom field:', trimmedName);
+    setCustomFields(prev => ({ ...prev, [trimmedName]: '' }));
+    setNewFieldName('');
+    setShowAddField(false);
+
+    // Message clair et immédiat
+    toast.success('Champ ajouté', {
+      description: `"${trimmedName}" est prêt à être rempli. Saisissez une valeur pour activer la sauvegarde.`,
+      duration: 4000,
+    });
   };
+
+  // ========================================
+  // CONFIGURATION DES CHAMPS
+  // ========================================
 
   const fields = [
     {
@@ -100,21 +290,21 @@ export const MetadataForm = ({ document, onUpdate }: MetadataFormProps) => {
       label: 'Titre du document',
       icon: Heading,
       placeholder: 'Titre du document',
-      autoExtracted: !!metadata.title,
+      autoExtracted: !!document.metadata.title,
     },
     {
       key: 'type' as keyof DocumentMetadata,
       label: 'Type de document',
       icon: FileType,
       placeholder: 'Type de document',
-      autoExtracted: !!metadata.type,
+      autoExtracted: !!document.metadata.type,
     },
     {
       key: 'publication_date' as keyof DocumentMetadata,
       label: 'Date de publication',
       icon: Calendar,
       placeholder: 'Ex: 23 January 2025',
-      autoExtracted: !!metadata.publication_date,
+      autoExtracted: !!document.metadata.publication_date,
     },
     {
       key: 'version' as keyof DocumentMetadata,
@@ -142,7 +332,7 @@ export const MetadataForm = ({ document, onUpdate }: MetadataFormProps) => {
       label: 'Langue',
       icon: Languages,
       placeholder: 'Langue',
-      autoExtracted: !!metadata.language,
+      autoExtracted: !!document.metadata.language,
     },
     {
       key: 'url_source' as keyof DocumentMetadata,
@@ -157,11 +347,15 @@ export const MetadataForm = ({ document, onUpdate }: MetadataFormProps) => {
       label: 'Contexte',
       icon: AlignLeft,
       placeholder: 'Contexte du document',
-      autoExtracted: !!metadata.context,
+      autoExtracted: !!document.metadata.context,
       fullWidth: true,
       textarea: true,
     },
   ];
+
+  // ========================================
+  // RENDER
+  // ========================================
 
   return (
     <Card>
@@ -169,7 +363,7 @@ export const MetadataForm = ({ document, onUpdate }: MetadataFormProps) => {
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <FileType className="w-5 h-5" />
-            Éditer les métadonnées
+            Editer les metadonnees
           </CardTitle>
           <div className="flex gap-2">
             <Button
@@ -181,22 +375,16 @@ export const MetadataForm = ({ document, onUpdate }: MetadataFormProps) => {
               {isReextracting ? (
                 <>
                   <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  Réextraction...
+                  Reextraction...
                 </>
               ) : (
                 <>
                   <RefreshCw className="w-4 h-4 mr-2" />
-                  Réextraire
+                  Reextraire
                 </>
               )}
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.open(document.url || `/rawdocs/view-original/${document.id}/`, '_blank')}
-            >
-              Voir PDF
-            </Button>
+
             <Button
               variant="outline"
               size="sm"
@@ -208,10 +396,31 @@ export const MetadataForm = ({ document, onUpdate }: MetadataFormProps) => {
           </div>
         </div>
       </CardHeader>
+
       <CardContent className="space-y-6">
-        {/* Add Custom Field Dialog */}
+
+        {/* STATUS ALERTS */}
+        {saveStatus === 'success' && (
+          <Alert className="border-2">
+            <Check className="h-4 w-4" />
+            <AlertDescription>
+              Modifications sauvegardees avec succes a {lastSaved?.toLocaleTimeString()}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {saveStatus === 'error' && (
+          <Alert className="border-2" variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Erreur lors de la sauvegarde. Veuillez reessayer.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* ADD CUSTOM FIELD DIALOG */}
         {showAddField && (
-          <div className="p-4 border rounded-lg bg-muted/50 space-y-3">
+          <div className="p-4 border rounded-lg space-y-3">
             <Label>Nom du nouveau champ</Label>
             <div className="flex gap-2">
               <Input
@@ -220,18 +429,23 @@ export const MetadataForm = ({ document, onUpdate }: MetadataFormProps) => {
                 placeholder="Ex: Produit, Dosage, etc."
                 onKeyPress={(e) => e.key === 'Enter' && handleAddCustomField()}
               />
-              <Button onClick={handleAddCustomField}>Ajouter</Button>
-              <Button variant="outline" onClick={() => {
-                setShowAddField(false);
-                setNewFieldName('');
-              }}>
+              <Button onClick={handleAddCustomField}>
+                Ajouter
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowAddField(false);
+                  setNewFieldName('');
+                }}
+              >
                 Annuler
               </Button>
             </div>
           </div>
         )}
 
-        {/* Standard Fields */}
+        {/* STANDARD FIELDS */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {fields.map((field) => {
             const Icon = field.icon;
@@ -271,19 +485,19 @@ export const MetadataForm = ({ document, onUpdate }: MetadataFormProps) => {
           })}
         </div>
 
-        {/* Custom Fields */}
+        {/* CUSTOM FIELDS */}
         {Object.keys(customFields).length > 0 && (
           <div className="space-y-4 pt-4 border-t">
-            <h3 className="text-sm font-semibold text-muted-foreground">Champs personnalisés</h3>
+            <h3 className="text-sm font-semibold text-muted-foreground">
+              Champs personnalises
+            </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {Object.entries(customFields).map(([fieldName, value]) => (
                 <div key={fieldName}>
                   <Label className="mb-2 capitalize">{fieldName}</Label>
                   <Input
                     value={value}
-                    onChange={(e) =>
-                      setCustomFields(prev => ({ ...prev, [fieldName]: e.target.value }))
-                    }
+                    onChange={(e) => handleCustomFieldChange(fieldName, e.target.value)}
                     placeholder={`Saisir ${fieldName}`}
                   />
                 </div>
@@ -292,56 +506,43 @@ export const MetadataForm = ({ document, onUpdate }: MetadataFormProps) => {
           </div>
         )}
 
-        {/* Extraction Quality Indicator */}
-        {document.quality && (
-          <div className="p-4 bg-muted/50 rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium">Qualité d'extraction</span>
-              <Badge variant={document.quality.extraction_rate > 70 ? 'default' : 'secondary'}>
-                {document.quality.extraction_rate.toFixed(0)}%
-              </Badge>
-            </div>
-            <div className="w-full bg-background rounded-full h-2">
-              <div
-                className="bg-primary h-2 rounded-full transition-all"
-                style={{ width: `${document.quality.extraction_rate}%` }}
-              />
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              {document.quality.extracted_fields} champs sur {document.quality.total_fields} extraits
-              {document.quality.llm_powered && ' • Powered by LLM'}
-            </p>
-          </div>
-        )}
+        {/* ACTION BUTTONS */}
+        <div className="flex justify-between items-center pt-4 border-t">
 
-        {/* Action Buttons */}
-        <div className="flex justify-end gap-3 pt-4 border-t">
-          <Button
-            onClick={handleSave}
-            disabled={isSaving}
-          >
-            {isSaving ? (
-              <>
-                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                Sauvegarde...
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4 mr-2" />
-                Sauvegarder
-              </>
-            )}
-          </Button>
-          {!document.is_validated && (
+
+
+          {/* ACTION BUTTONS */}
+          <div className="flex gap-3">
             <Button
-              onClick={handleValidate}
-              variant="default"
+              onClick={handleSave}
+              disabled={isSaving || !hasChanges}
+              variant={hasChanges ? "default" : "outline"}
             >
-              <CheckCircle className="w-4 h-4 mr-2" />
-              Valider
+              {isSaving ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Sauvegarde...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 mr-2" />
+                  Sauvegarder
+                </>
+              )}
             </Button>
-          )}
+
+            {!document.is_validated && (
+              <Button
+                onClick={handleValidate}
+                variant="default"
+              >
+                <CheckCircle className="w-4 h-4 mr-2" />
+                Valider
+              </Button>
+            )}
+          </div>
         </div>
+
       </CardContent>
     </Card>
   );
