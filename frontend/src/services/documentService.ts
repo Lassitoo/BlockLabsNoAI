@@ -153,16 +153,28 @@ export const documentService = {
       };
 
     } catch (error: any) {
-      console.error('Get document error:', error);
+      console.error('GET DOCUMENT ERROR:', error);
+      
+      // Vérifier si c'est une erreur d'authentification
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        console.error('Erreur d\'authentification - L\'utilisateur n\'est pas connecté');
+        throw new Error('Vous devez être connecté pour accéder à ce document');
+      }
+      
+      // Vérifier si c'est une erreur réseau
+      if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+        console.error('Erreur réseau - Le serveur Django ne répond pas');
+        throw new Error('Impossible de se connecter au serveur. Vérifiez que le serveur Django est démarré.');
+      }
+      
       console.groupEnd();
-
-
       throw error;
     }
   },
 
   // HTML structuré
   async getStructuredHtml(docId: string, regen = false): Promise<string> {
+    console.log('Getting structured HTML for doc:', docId, 'regen:', regen);
     console.log('📄 Getting structured HTML for doc:', docId, 'regen:', regen);
 
     // ✅ AJOUT: Timestamp pour forcer le rechargement

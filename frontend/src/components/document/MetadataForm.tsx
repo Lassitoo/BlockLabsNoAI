@@ -1,6 +1,5 @@
-// src/components/document/MetadataForm.tsx
-
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,6 +44,7 @@ type SaveStatus = 'idle' | 'saving' | 'success' | 'error';
 // ========================================
 
 export const MetadataForm = ({ document, onUpdate }: MetadataFormProps) => {
+  const router = useRouter();
 
   // ========================================
   // STATE
@@ -232,29 +232,36 @@ export const MetadataForm = ({ document, onUpdate }: MetadataFormProps) => {
 
       toast.dismiss(loadingToast);
 
-      toast.success('Document valide', {
-        description: 'Le document est maintenant disponible pour annotation',
-        duration: 3000,
+      toast.success('Document validé !', {
+        description: 'Redirection vers le tableau de bord...',
+        duration: 2000,
       });
 
-      if (onUpdate) {
-        const freshDocument = await documentService.getDocument(document.id, true);
-        onUpdate(freshDocument);
-      }
+      // Rediriger vers le dashboard après 1 seconde
+      setTimeout(() => {
+        router.push('/document-manager');
+      }, 1000);
 
     } catch (error: any) {
       console.error('VALIDATION ERROR:', error);
 
-      const errorMessage = error.response?.data?.error || 'Erreur lors de la validation';
-      toast.error('Echec de la validation', {
-        description: errorMessage,
-        duration: 5000,
-      });
+      // Vérifier si c'est une erreur réseau
+      if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+        toast.error('Erreur de connexion', {
+          description: 'Impossible de se connecter au serveur. Vérifiez que le serveur Django est démarré sur http://localhost:8000',
+          duration: 5000,
+        });
+      } else {
+        const errorMessage = error.response?.data?.error || 'Erreur lors de la validation';
+        toast.error('Echec de la validation', {
+          description: errorMessage,
+          duration: 5000,
+        });
+      }
     } finally {
       console.groupEnd();
     }
   };
-
   // Dans handleAddCustomField()
   const handleAddCustomField = () => {
     const trimmedName = newFieldName.trim();

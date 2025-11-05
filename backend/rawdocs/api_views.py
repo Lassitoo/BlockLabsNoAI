@@ -2076,12 +2076,35 @@ def api_validate_document(request, doc_id):
 @login_required
 def api_get_document(request, doc_id):
     """API endpoint to get document details"""
-    document = get_object_or_404(RawDocument, id=doc_id, owner=request.user)
+    try:
+        # Essayer d'abord avec owner
+        document = RawDocument.objects.filter(id=doc_id, owner=request.user).first()
+        
+        # Si pas trouvé, vérifier si l'utilisateur a accès (expert, admin, etc.)
+        if not document:
+            document = RawDocument.objects.filter(id=doc_id).first()
+            if document and not document.is_accessible_by(request.user):
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Accès non autorisé à ce document'
+                }, status=403)
+        
+        if not document:
+            return JsonResponse({
+                'success': False,
+                'error': 'Document non trouvé'
+            }, status=404)
 
-    return JsonResponse({
-        'success': True,
-        'document': serialize_document(document)
-    })
+        return JsonResponse({
+            'success': True,
+            'document': serialize_document(document)
+        })
+    except Exception as e:
+        print(f"Erreur api_get_document: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
 
 
 @require_http_methods(["DELETE"])

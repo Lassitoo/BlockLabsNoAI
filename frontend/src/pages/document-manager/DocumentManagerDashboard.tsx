@@ -228,15 +228,17 @@ const DocumentManagerDashboard = () => {
                 {documents.slice(0, 5).map((doc) => (
                   <div
                     key={doc.id}
-                    className="flex items-center justify-between p-4 rounded-xl border-2 hover:border-blue-200 hover:bg-blue-50/50 transition-all duration-200 cursor-pointer group"
-                    onClick={() => router.push(`/document-manager/documents/${doc.id}`)}
+                    className="flex items-center justify-between p-4 rounded-xl border-2 hover:border-blue-200 hover:bg-blue-50/50 transition-all duration-200 group"
                   >
                     <div className="flex items-center gap-4 flex-1">
                       <div className="p-3 rounded-lg bg-blue-50 group-hover:bg-blue-100 transition-colors">
                         <FileText className="w-6 h-6 text-blue-600" />
                       </div>
                       <div>
-                        <p className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+                        <p 
+                          className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors cursor-pointer"
+                          onClick={() => router.push(`/annotation/view/${doc.id}`)}
+                        >
                           {doc.name}
                         </p>
                         <p className="text-sm text-muted-foreground">
