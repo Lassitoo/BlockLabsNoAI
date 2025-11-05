@@ -18,6 +18,7 @@ urlpatterns = [
     path('api/auth/', include('authentication.api_urls')),
     path('api/admin/', include('administration.api_urls')),
     path('api/expert/', include('expert.api_urls')),
+    path('api/expert/', include('expert.semantic_urls')),  # Routes JSON Sémantique
 ]
 
 if settings.DEBUG:

@@ -1,5 +1,5 @@
 # expert/urls.py
-from django.urls import path
+from django.urls import path, include
 from . import views, views_enrichment, views_learning, views_evaluation
 
 app_name = "expert"
@@ -153,3 +153,15 @@ urlpatterns = [
     path("page-image/<int:doc_id>/<int:page_num>/", views.get_page_image, name="get_page_image"),
 
 ]
+
+# ============================================
+# 🔌 API JSON SÉMANTIQUE (Next.js Frontend)
+# ============================================
+# Routes API RESTful pour le frontend Next.js
+# Préfixées par /api/expert/ dans le fichier URLs principal
+api_urlpatterns = [
+    path('api/expert/', include('expert.semantic_urls')),
+]
+
+# Ajouter les URLs API aux URLs principales
+urlpatterns += api_urlpatterns
