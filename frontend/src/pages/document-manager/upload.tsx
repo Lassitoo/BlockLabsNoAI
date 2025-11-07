@@ -8,13 +8,16 @@ import { RawDocument } from '@/types/document';
 import { toast } from 'sonner';
 
 const UploadDocumentPage = () => {
-  const router = useRouter();
   const [uploadedDocument, setUploadedDocument] = useState<RawDocument | null>(null);
   const [uploadedDocuments, setUploadedDocuments] = useState<RawDocument[]>([]);
   const [isZipUpload, setIsZipUpload] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
   const handleUploadSuccess = (documents: RawDocument[], isZip: boolean) => {
+    // Réinitialiser l'état précédent avant d'afficher le nouveau document
+    setUploadedDocument(null);
+    setUploadedDocuments([]);
+
     if (isZip) {
       setUploadedDocuments(documents);
       setIsZipUpload(true);
@@ -25,6 +28,8 @@ const UploadDocumentPage = () => {
       toast.success('Document importé avec succès!');
     }
   };
+
+  const router = useRouter();
 
   const handleBackToList = () => {
     router.push('/document-manager');

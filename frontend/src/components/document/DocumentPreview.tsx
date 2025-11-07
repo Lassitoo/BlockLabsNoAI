@@ -1,5 +1,5 @@
 // src/components/document/DocumentPreview.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,13 @@ interface DocumentPreviewProps {
 export const DocumentPreview = ({ document: initialDocument, onBackToList }: DocumentPreviewProps) => {
   const [activeTab, setActiveTab] = useState('metadata');
   const [currentDocument, setCurrentDocument] = useState<RawDocument>(initialDocument);
+
+  // Synchroniser avec le nouveau document quand il change
+  useEffect(() => {
+    console.log('📄 Nouveau document reçu:', initialDocument.id, initialDocument.metadata.title);
+    setCurrentDocument(initialDocument);
+    setActiveTab('metadata'); // Revenir à l'onglet métadonnées
+  }, [initialDocument.id]); // Se déclenche quand l'ID du document change
 
   // Callback pour mettre à jour le document après sauvegarde
   const handleDocumentUpdate = (updatedDoc: RawDocument) => {
