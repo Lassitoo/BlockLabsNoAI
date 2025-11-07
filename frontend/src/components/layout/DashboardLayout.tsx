@@ -15,7 +15,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           <header className="h-14 border-b flex items-center px-6 bg-card">
             <div className="flex items-center gap-2">
               <SidebarTrigger />
-              <h2 className="text-lg font-semibold">BlockLabsIA</h2>
+              <h2 className="text-lg font-semibold">BlockLabs</h2>
             </div>
           </header>
           <main className="flex-1 p-6 overflow-auto">

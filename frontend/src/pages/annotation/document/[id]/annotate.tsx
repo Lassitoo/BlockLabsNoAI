@@ -2,7 +2,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Eye, EyeOff, Bot, CheckCircle, FileText, Plus, Trash2, Copy } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, CheckCircle, FileText, Plus, Trash2, Copy } from 'lucide-react';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import axiosInstance from '@/lib/axios';
@@ -74,7 +74,6 @@ const DocumentAnnotate = () => {
   const [selectedAnnotationType, setSelectedAnnotationType] = useState<string>('');
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [annotating, setAnnotating] = useState(false);
   const [validating, setValidating] = useState(false);
   const [showAiAnnotations, setShowAiAnnotations] = useState(true);
   const [viewMode, setViewMode] = useState<'raw' | 'structured'>('structured');
@@ -410,43 +409,6 @@ const DocumentAnnotate = () => {
     }
   };
 
-  const handleAiAnnotate = async () => {
-  if (!documentData) return;
-
-  setAnnotating(true);
-  try {
-    const page = documentData.pages.find(p => p.page_number === currentPage);
-    if (!page) return;
-
-    const response = await axiosInstance.post(`/annotation/ai/page/${page.id}/`, {
-      mode: 'structured'
-    });
-    const data = response.data;
-
-    if (data.success) {
-      console.log(`✅ AI created ${data.annotations_created} annotations`);
-
-      // CRITICAL: Reload document data first
-      await fetchDocument();
-
-      // THEN reload structured HTML
-      await fetchStructuredHtml();
-
-      // Wait a bit for DOM to update, then apply highlights
-      setTimeout(() => {
-        applyAnnotationHighlights();
-      }, 300);
-
-      alert(`✅ ${data.annotations_created} annotations créées avec l'IA !`);
-    }
-  } catch (error: any) {
-    console.error('Error with AI annotation:', error);
-    const errorMsg = error.response?.data?.error || 'Erreur lors de l\'annotation IA';
-    alert(`❌ ${errorMsg}`);
-  } finally {
-    setAnnotating(false);
-  }
-};
 
   const handleValidatePage = async () => {
     if (!documentData) return;
@@ -714,11 +676,6 @@ const DocumentAnnotate = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={handleAiAnnotate} disabled={annotating} className="bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-300">
-                    <Bot className="w-4 h-4 mr-2" />
-                    {annotating ? 'Annotation en cours...' : 'AI Annotate'}
-                  </Button>
-
                   <Button size="sm" onClick={handleValidatePage} disabled={validating || currentPageData?.is_validated_by_human} className="bg-green-600 hover:bg-green-700">
                     <CheckCircle className="w-4 h-4 mr-2" />
                     {validating ? 'Validation...' : 'Validate Page'}

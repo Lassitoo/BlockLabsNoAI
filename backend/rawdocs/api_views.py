@@ -540,10 +540,6 @@ def update_document_metadata(request, doc_id):
         return JsonResponse({
             'success': True,
             'document': serialize_document(doc),
-            'custom_fields': {
-                v.field.name: v.value
-                for v in CustomFieldValue.objects.filter(document=doc)
-            },
             'message': 'Sauvegarde réussie',
             'changes': changes_made
         })
@@ -1793,6 +1789,12 @@ def serialize_document(document):
     except Exception as e:
         print(f"⚠️ Could not extract CSS: {e}")
     
+    # Extract custom fields
+    custom_fields = {
+        v.field.name: v.value
+        for v in CustomFieldValue.objects.filter(document=document)
+    }
+    
     return {
         'id': str(document.id),
         'file_name': os.path.basename(document.file.name) if document.file else '',
@@ -1813,6 +1815,7 @@ def serialize_document(document):
             'language': document.language or '',
             'url_source': document.url_source or (document.url or ''),
         },
+        'custom_fields': custom_fields,
         'quality': document.original_ai_metadata.get('quality', {}) if document.original_ai_metadata else {}
     }
 

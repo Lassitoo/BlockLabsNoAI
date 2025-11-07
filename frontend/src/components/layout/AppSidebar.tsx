@@ -92,7 +92,7 @@ export function AppSidebar() {
             <Layers className="w-6 h-6 text-primary-foreground" />
           </div>
           <div>
-            <h2 className="font-bold text-lg">BlockLabsIA</h2>
+            <h2 className="font-bold text-lg">BlockLabs</h2>
             <p className="text-xs text-muted-foreground capitalize">{user?.role?.replace('_', ' ')}</p>
           </div>
         </Link>
