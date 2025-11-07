@@ -2,13 +2,9 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Save, Eye, EyeOff, Bot, CheckCircle, Clock, FileText, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, Bot, CheckCircle, FileText, Plus, Trash2, Copy } from 'lucide-react';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
-import { AnnotationView } from '@/components/annotation/AnnotationView';
-import { AnnotationToolbar } from '@/components/annotation/AnnotationToolbar';
 import axiosInstance from '@/lib/axios';
 
 interface Document {
@@ -55,6 +51,7 @@ interface Annotation {
   created_by: string;
   start_xpath?: string;
   end_xpath?: string;
+  selected_text?: string;
 }
 
 interface AnnotationType {
@@ -81,10 +78,8 @@ const DocumentAnnotate = () => {
   const [showAiAnnotations, setShowAiAnnotations] = useState(true);
   const [viewMode, setViewMode] = useState<'raw' | 'structured'>('structured');
   const [structuredHtml, setStructuredHtml] = useState<string>('');
-  const [structuredHtmlCss, setStructuredHtmlCss] = useState<string>('');
   const [loadingStructured, setLoadingStructured] = useState(false);
   const [showAddTypeModal, setShowAddTypeModal] = useState(false);
-  const [newTypeName, setNewTypeName] = useState('');
   const [newTypeDisplayName, setNewTypeDisplayName] = useState('');
   const [selectedText, setSelectedText] = useState('');
 
@@ -105,10 +100,17 @@ const DocumentAnnotate = () => {
     }
   }, [currentPage, documentData]);
 
-  // Highlight annotations in the structured HTML
+  useEffect(() => {
+    if (documentId && currentPage) {
+      fetchStructuredHtml();
+    }
+  }, [currentPage]);
+
   useEffect(() => {
     if (structuredHtml && annotations.length > 0) {
-      highlightAnnotations();
+      setTimeout(() => {
+        applyAnnotationHighlights();
+      }, 100);
     }
   }, [annotations, structuredHtml]);
 
@@ -149,12 +151,11 @@ const DocumentAnnotate = () => {
   const fetchStructuredHtml = async () => {
     setLoadingStructured(true);
     try {
-      const response = await axiosInstance.get(`/document/${documentId}/structured/`);
-      const data = response.data;
+      const response = await axiosInstance.get(`/document/${documentId}/structured/?page=${currentPage}`);
+      const data = response.data as { success: boolean; structured_html?: string };
 
       if (data.success) {
         setStructuredHtml(data.structured_html || '');
-        setStructuredHtmlCss(data.structured_html_css || '');
       }
     } catch (error) {
       console.error('Error fetching structured HTML:', error);
@@ -162,6 +163,131 @@ const DocumentAnnotate = () => {
       setLoadingStructured(false);
     }
   };
+
+  const applyAnnotationHighlights = () => {
+  const container = document.querySelector('.structured-html-view');
+  if (!container) {
+    console.log('❌ Container not found');
+    return;
+  }
+
+  // Remove old highlights first
+  container.querySelectorAll('.inline-annotation').forEach(el => {
+    const textContent = el.textContent || '';
+    const textNode = document.createTextNode(textContent);
+    el.parentNode?.replaceChild(textNode, el);
+  });
+  container.normalize();
+
+  console.log(`🎨 Applying ${annotations.length} annotations`);
+
+  // Apply each annotation
+  annotations.forEach((annotation) => {
+    const searchText = (annotation.text || annotation.selected_text || '').trim();
+    if (!searchText) {
+      console.warn('⚠️ Skipping empty annotation:', annotation.id);
+      return;
+    }
+
+    console.log(`🔍 Searching for: "${searchText.substring(0, 50)}..."`);
+
+    // Create tree walker to find text
+    const walker = document.createTreeWalker(
+      container,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode: (node) => {
+          // Skip if already inside an annotation
+          let parent = node.parentNode;
+          while (parent && parent !== container) {
+            if (parent instanceof Element && parent.classList?.contains('inline-annotation')) {
+              return NodeFilter.FILTER_REJECT;
+            }
+            parent = parent.parentNode;
+          }
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      }
+    );
+
+    let textNode: Node | null;
+    let found = false;
+
+    while ((textNode = walker.nextNode())) {
+      const text = textNode.textContent || '';
+      const index = text.indexOf(searchText);
+
+      if (index !== -1) {
+        found = true;
+        console.log(`✅ Found at index ${index}`);
+
+        const parent = textNode.parentNode;
+        if (!parent) continue;
+
+        const before = text.substring(0, index);
+        const match = text.substring(index, index + searchText.length);
+        const after = text.substring(index + searchText.length);
+
+        // Create annotation span
+        const span = document.createElement('span');
+        span.className = 'inline-annotation';
+        span.dataset.annotationId = annotation.id.toString();
+        span.style.cssText = `
+          background-color: ${annotation.color}30;
+          border-bottom: 2px solid ${annotation.color};
+          padding: 2px 4px;
+          margin: 0 1px;
+          border-radius: 3px;
+          cursor: pointer;
+          display: inline;
+          position: relative;
+        `;
+        span.textContent = match;
+
+        // Add type label
+        const label = document.createElement('span');
+        label.className = 'ann-label';
+        label.style.cssText = `
+          font-size: 0.65rem;
+          font-weight: 700;
+          margin-left: 4px;
+          padding: 2px 6px;
+          border-radius: 4px;
+          background: rgba(0,0,0,0.8);
+          color: white;
+          white-space: nowrap;
+          display: inline;
+        `;
+        label.textContent = annotation.type_display;
+        span.appendChild(label);
+
+        // Click to delete
+        span.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (confirm(`Supprimer cette annotation?\n"${searchText.substring(0, 50)}..."`)) {
+            handleDeleteAnnotation(annotation.id);
+          }
+        };
+
+        // Replace text node with annotated version
+        const fragment = document.createDocumentFragment();
+        if (before) fragment.appendChild(document.createTextNode(before));
+        fragment.appendChild(span);
+        if (after) fragment.appendChild(document.createTextNode(after));
+
+        parent.replaceChild(fragment, textNode);
+        break; // Only highlight first occurrence
+      }
+    }
+
+    if (!found) {
+      console.warn(`❌ Text not found: "${searchText.substring(0, 50)}..."`);
+    }
+  });
+
+  console.log('✨ Highlighting complete');
+};
 
   const handleAddAnnotation = async (text: string, startIndex: number, endIndex: number, xpathData?: any) => {
     if (!selectedAnnotationType) return;
@@ -179,7 +305,6 @@ const DocumentAnnotate = () => {
         mode: viewMode
       };
 
-      // Add XPath data if in structured mode
       if (viewMode === 'structured' && xpathData) {
         payload.start_xpath = xpathData.start_xpath;
         payload.end_xpath = xpathData.end_xpath;
@@ -191,123 +316,51 @@ const DocumentAnnotate = () => {
       const data = response.data;
 
       if (data.success) {
-        setAnnotations([...annotations, data.annotation]);
-        // Update document state
-        if (documentData) {
-          const updatedPages = documentData.pages.map(p =>
-            p.page_number === currentPage
-              ? { ...p, annotations: [...p.annotations, data.annotation], is_annotated: true }
-              : p
-          );
-          setDocumentData({ ...documentData, pages: updatedPages });
-        }
+        await fetchDocument();
+        setSelectedText('');
       }
     } catch (error) {
       console.error('Error adding annotation:', error);
     }
   };
 
-  const highlightAnnotations = () => {
-    const container = document.querySelector('.structured-html-view');
-    if (!container) return;
-
-    // Remove existing highlights
-    container.querySelectorAll('.annotation-highlight').forEach(el => {
-      const parent = el.parentNode;
-      if (parent) {
-        parent.replaceChild(document.createTextNode(el.textContent || ''), el);
-        parent.normalize();
-      }
-    });
-
-    // Sort annotations by position
-    const sortedAnnotations = [...annotations].sort((a, b) => a.startPos - b.startPos);
-
-    // Apply highlights
-    sortedAnnotations.forEach((annotation) => {
-      const text = annotation.text;
-      const color = annotation.color;
-      
-      // Find and highlight text
-      highlightTextInElement(container, text, color, annotation.type_display);
-    });
-  };
-
-  const highlightTextInElement = (element: Element, searchText: string, color: string, typeName: string) => {
-    const walker = document.createTreeWalker(
-      element,
-      NodeFilter.SHOW_TEXT,
-      null
-    );
-
-    const nodesToReplace: { node: Node; text: string; index: number }[] = [];
-    let currentNode;
-
-    while ((currentNode = walker.nextNode())) {
-      const text = currentNode.textContent || '';
-      const index = text.indexOf(searchText);
-      
-      if (index !== -1) {
-        nodesToReplace.push({ node: currentNode, text: searchText, index });
-      }
-    }
-
-    // Replace nodes with highlighted versions
-    nodesToReplace.forEach(({ node, text, index }) => {
-      const parent = node.parentNode;
-      if (!parent) return;
-
-      const nodeText = node.textContent || '';
-      const before = nodeText.substring(0, index);
-      const after = nodeText.substring(index + text.length);
-
-      const span = document.createElement('span');
-      span.className = 'annotation-highlight';
-      span.textContent = text;
-      span.style.backgroundColor = `${color}40`; // 40 = 25% opacity
-      span.style.borderBottom = `2px solid ${color}`;
-      span.style.padding = '2px 4px';
-      span.style.borderRadius = '3px';
-      span.style.cursor = 'pointer';
-      span.title = typeName;
-
-      const fragment = document.createDocumentFragment();
-      if (before) fragment.appendChild(document.createTextNode(before));
-      fragment.appendChild(span);
-      if (after) fragment.appendChild(document.createTextNode(after));
-
-      parent.replaceChild(fragment, node);
-    });
-  };
-
   const handleAiAnnotate = async () => {
-    if (!documentData) return;
+  if (!documentData) return;
 
-    setAnnotating(true);
-    try {
-      const page = documentData.pages.find(p => p.page_number === currentPage);
-      if (!page) return;
+  setAnnotating(true);
+  try {
+    const page = documentData.pages.find(p => p.page_number === currentPage);
+    if (!page) return;
 
-      const response = await axiosInstance.post(`/annotation/ai/page/${page.id}/`, {
-        mode: viewMode
-      });
-      const data = response.data;
+    const response = await axiosInstance.post(`/annotation/ai/page/${page.id}/`, {
+      mode: 'structured'
+    });
+    const data = response.data;
 
-      if (data.success) {
-        // Refresh the document to get updated annotations
-        await fetchDocument();
-        
-        // Show success message
-        alert(`✅ ${data.annotations_created} annotations créées avec l'IA !`);
-      }
-    } catch (error: any) {
-      console.error('Error with AI annotation:', error);
-      const errorMsg = error.response?.data?.error || 'Erreur lors de l\'annotation IA';
-      alert(`❌ ${errorMsg}`);
-    } finally {
-      setAnnotating(false);
+    if (data.success) {
+      console.log(`✅ AI created ${data.annotations_created} annotations`);
+
+      // CRITICAL: Reload document data first
+      await fetchDocument();
+
+      // THEN reload structured HTML
+      await fetchStructuredHtml();
+
+      // Wait a bit for DOM to update, then apply highlights
+      setTimeout(() => {
+        applyAnnotationHighlights();
+      }, 300);
+
+      alert(`✅ ${data.annotations_created} annotations créées avec l'IA !`);
     }
-  };
+  } catch (error: any) {
+    console.error('Error with AI annotation:', error);
+    const errorMsg = error.response?.data?.error || 'Erreur lors de l\'annotation IA';
+    alert(`❌ ${errorMsg}`);
+  } finally {
+    setAnnotating(false);
+  }
+};
 
   const handleValidatePage = async () => {
     if (!documentData) return;
@@ -321,7 +374,6 @@ const DocumentAnnotate = () => {
       const data = response.data;
 
       if (data.success) {
-        // Refresh the document to get updated validation status
         await fetchDocument();
       }
     } catch (error) {
@@ -341,18 +393,7 @@ const DocumentAnnotate = () => {
       const data = response.data;
 
       if (data.success) {
-        // Remove annotation from state
-        setAnnotations(annotations.filter(ann => ann.id !== annotationId));
-        
-        // Update document state
-        if (documentData) {
-          const updatedPages = documentData.pages.map(p =>
-            p.page_number === currentPage
-              ? { ...p, annotations: p.annotations.filter(ann => ann.id !== annotationId) }
-              : p
-          );
-          setDocumentData({ ...documentData, pages: updatedPages });
-        }
+        await fetchDocument();
       }
     } catch (error) {
       console.error('Error deleting annotation:', error);
@@ -370,7 +411,7 @@ const DocumentAnnotate = () => {
       const response = await axiosInstance.post('/annotation/types/create/', {
         name: name,
         display_name: newTypeDisplayName,
-        color: `#${Math.floor(Math.random()*16777215).toString(16)}` // Random color
+        color: `#${Math.floor(Math.random()*16777215).toString(16)}`
       });
 
       if (response.data.success) {
@@ -379,7 +420,6 @@ const DocumentAnnotate = () => {
         setSelectedAnnotationType(newType.id.toString());
         setShowAddTypeModal(false);
         setNewTypeDisplayName('');
-        setNewTypeName('');
       }
     } catch (error) {
       console.error('Error creating annotation type:', error);
@@ -395,47 +435,61 @@ const DocumentAnnotate = () => {
   };
 
   const handleAnnotateSelection = async () => {
-    if (!selectedText || !selectedAnnotationType) {
-      alert('Veuillez sélectionner du texte et un type d\'annotation');
-      return;
-    }
+  if (!selectedText || !selectedAnnotationType) {
+    alert('Veuillez sélectionner du texte et un type d\'annotation');
+    return;
+  }
 
-    // Check if we're in browser environment
-    if (typeof window === 'undefined') return;
+  try {
+    const page = documentData?.pages.find(p => p.page_number === currentPage);
+    if (!page) return;
 
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
+    const payload = {
+      page_id: page.id,
+      selected_text: selectedText,
+      annotation_type_id: parseInt(selectedAnnotationType),
+      start_pos: 0,
+      end_pos: selectedText.length,
+      mode: 'structured'
+    };
 
-    const range = selection.getRangeAt(0);
-    const container = typeof window !== 'undefined' && typeof window.document !== 'undefined' 
-      ? window.document.querySelector('.structured-html-view') 
-      : null;
-    if (!container) {
-      // Fallback: use simple position calculation
-      const page = documentData?.pages.find(p => p.page_number === currentPage);
-      if (page) {
-        const textContent = page.text_content;
-        const startPos = textContent.indexOf(selectedText);
-        if (startPos !== -1) {
-          const endPos = startPos + selectedText.length;
-          await handleAddAnnotation(selectedText, startPos, endPos);
-          setSelectedText('');
-          selection.removeAllRanges();
-        }
+    const response = await axiosInstance.post('/annotation/add/', payload);
+    const data = response.data;
+
+    if (data.success) {
+      await fetchDocument();
+      setSelectedText('');
+      if (window.getSelection) {
+        window.getSelection()?.removeAllRanges();
       }
-      return;
+      alert('✅ Annotation ajoutée!');
     }
+  } catch (error) {
+    console.error('Error adding annotation:', error);
+    alert('❌ Erreur lors de l\'ajout de l\'annotation');
+  }
+};
 
-    // Calculate positions
-    const preSelectionRange = range.cloneRange();
-    preSelectionRange.selectNodeContents(container);
-    preSelectionRange.setEnd(range.startContainer, range.startOffset);
-    const startPos = preSelectionRange.toString().length;
-    const endPos = startPos + selectedText.length;
+  const copyJSONToClipboard = () => {
+    const json = JSON.stringify({
+      page_number: currentPage,
+      page_id: currentPageData?.id,
+      total_annotations: currentPageData?.annotations?.length || 0,
+      is_validated: currentPageData?.is_validated_by_human || false,
+      validated_by: currentPageData?.validated_by || null,
+      annotations: currentPageData?.annotations?.map(ann => ({
+        id: ann.id,
+        text: ann.text || ann.selected_text,
+        type: ann.type_display,
+        color: ann.color,
+        confidence: ann.confidence,
+        created_by: ann.created_by,
+        mode: ann.mode
+      })) || []
+    }, null, 2);
 
-    await handleAddAnnotation(selectedText, startPos, endPos);
-    setSelectedText('');
-    selection.removeAllRanges();
+    navigator.clipboard.writeText(json);
+    alert('✅ JSON copié dans le presse-papier!');
   };
 
   if (loading) {
@@ -463,13 +517,9 @@ const DocumentAnnotate = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              onClick={() => router.push('/annotation/dashboard')}
-            >
+            <Button variant="outline" onClick={() => router.push('/annotation/dashboard')}>
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Dashboard
             </Button>
@@ -478,15 +528,11 @@ const DocumentAnnotate = () => {
                 <FileText className="w-8 h-8" />
                 Annotate Document
               </h1>
-              <p className="text-muted-foreground mt-1">
-                {documentData.title}
-              </p>
+              <p className="text-muted-foreground mt-1">{documentData.title}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="outline">
-              Page {currentPage} of {documentData.total_pages}
-            </Badge>
+            <Badge variant="outline">Page {currentPage} of {documentData.total_pages}</Badge>
             {currentPageData?.is_validated_by_human && (
               <Badge className="bg-green-100 text-green-800">
                 <CheckCircle className="w-3 h-3 mr-1" />
@@ -496,11 +542,9 @@ const DocumentAnnotate = () => {
           </div>
         </div>
 
-        {/* Toolbar */}
         <Card>
           <CardContent className="pt-6">
             <div className="space-y-4">
-              {/* Annotation Types */}
               <div>
                 <label className="text-sm font-medium mb-2 block">Types d'Annotation</label>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -520,48 +564,32 @@ const DocumentAnnotate = () => {
                       {type.display_name}
                     </Button>
                   ))}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowAddTypeModal(true)}
-                    className="border-dashed"
-                  >
+                  <Button variant="outline" size="sm" onClick={() => setShowAddTypeModal(true)} className="border-dashed">
                     <Plus className="w-4 h-4 mr-2" />
                     Ajouter Type
                   </Button>
                 </div>
               </div>
 
-              {/* Selection Info */}
               {selectedText && (
                 <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="flex-1">
                     <p className="text-sm font-medium text-blue-900">Texte sélectionné:</p>
                     <p className="text-sm text-blue-700 truncate">{selectedText}</p>
                   </div>
-                  <Button
-                    size="sm"
-                    onClick={handleAnnotateSelection}
-                    disabled={!selectedAnnotationType}
-                    className="bg-blue-600 hover:bg-blue-700"
-                  >
+                  <Button size="sm" onClick={handleAnnotateSelection} disabled={!selectedAnnotationType} className="bg-blue-600 hover:bg-blue-700">
                     Annoter
                   </Button>
                 </div>
               )}
 
-              {/* Actions */}
               <div className="flex items-center justify-between pt-2 border-t">
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowAiAnnotations(!showAiAnnotations)}
-                  >
+                  <Button variant="outline" size="sm" onClick={() => setShowAiAnnotations(!showAiAnnotations)}>
                     {showAiAnnotations ? <Eye className="w-4 h-4 mr-2" /> : <EyeOff className="w-4 h-4 mr-2" />}
                     {showAiAnnotations ? 'Hide' : 'Show'} AI
                   </Button>
-                  
+
                   {annotations.length > 0 && (
                     <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
                       {annotations.length} annotation{annotations.length > 1 ? 's' : ''}
@@ -570,23 +598,12 @@ const DocumentAnnotate = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleAiAnnotate}
-                    disabled={annotating}
-                    className="bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-300"
-                  >
+                  <Button variant="outline" size="sm" onClick={handleAiAnnotate} disabled={annotating} className="bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-300">
                     <Bot className="w-4 h-4 mr-2" />
                     {annotating ? 'Annotation en cours...' : 'AI Annotate'}
                   </Button>
 
-                  <Button
-                    size="sm"
-                    onClick={handleValidatePage}
-                    disabled={validating || currentPageData?.is_validated_by_human}
-                    className="bg-green-600 hover:bg-green-700"
-                  >
+                  <Button size="sm" onClick={handleValidatePage} disabled={validating || currentPageData?.is_validated_by_human} className="bg-green-600 hover:bg-green-700">
                     <CheckCircle className="w-4 h-4 mr-2" />
                     {validating ? 'Validation...' : 'Validate Page'}
                   </Button>
@@ -596,7 +613,6 @@ const DocumentAnnotate = () => {
           </CardContent>
         </Card>
 
-        {/* Modal pour ajouter un type */}
         {showAddTypeModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <Card className="w-full max-w-md">
@@ -607,29 +623,13 @@ const DocumentAnnotate = () => {
               <CardContent className="space-y-4">
                 <div>
                   <label className="text-sm font-medium mb-1 block">Nom d'affichage</label>
-                  <input
-                    type="text"
-                    className="w-full px-3 py-2 border rounded-md"
-                    value={newTypeDisplayName}
-                    onChange={(e) => setNewTypeDisplayName(e.target.value)}
-                    placeholder="Ex: Produit, Autorité, Délai..."
-                  />
+                  <input type="text" className="w-full px-3 py-2 border rounded-md" value={newTypeDisplayName} onChange={(e) => setNewTypeDisplayName(e.target.value)} placeholder="Ex: Produit, Autorité, Délai..." />
                 </div>
                 <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setShowAddTypeModal(false);
-                      setNewTypeDisplayName('');
-                    }}
-                    className="flex-1"
-                  >
+                  <Button variant="outline" onClick={() => { setShowAddTypeModal(false); setNewTypeDisplayName(''); }} className="flex-1">
                     Annuler
                   </Button>
-                  <Button
-                    onClick={handleCreateAnnotationType}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700"
-                  >
+                  <Button onClick={handleCreateAnnotationType} className="flex-1 bg-blue-600 hover:bg-blue-700">
                     Créer
                   </Button>
                 </div>
@@ -638,61 +638,111 @@ const DocumentAnnotate = () => {
           </div>
         )}
 
-        {/* Annotation View */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="structured-content-container">
-              {loadingStructured ? (
-                <div className="flex items-center justify-center p-8">
-                  <div className="text-lg">Loading structured content...</div>
-                </div>
-              ) : structuredHtml ? (
-                <>
-                  {/* Inject CSS dynamically if available */}
-                  {structuredHtmlCss && (
-                    <style dangerouslySetInnerHTML={{ __html: structuredHtmlCss }} />
-                  )}
-                  <div 
-                    className="pdf-document-container structured-html-view"
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card className="shadow-xl border-gray-200">
+            <CardHeader className="bg-gradient-to-r from-gray-900 to-gray-800 text-white border-b">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <FileText className="w-5 h-5" />
+                Page {currentPage} / {documentData.total_pages}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="max-h-[70vh] overflow-y-auto p-6 bg-white">
+                {loadingStructured ? (
+                  <div className="flex items-center justify-center p-12">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
+                    <span className="ml-3 text-gray-600">Chargement...</span>
+                  </div>
+                ) : structuredHtml ? (
+                  <div
+                    className="structured-html-view"
                     dangerouslySetInnerHTML={{ __html: structuredHtml }}
                     onMouseUp={handleTextSelection}
-                    style={{
-                      padding: '20px',
-                      background: 'white',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '8px',
-                      minHeight: '500px',
-                      userSelect: 'text',
-                      cursor: 'text'
-                    }}
+                    style={{ userSelect: 'text', cursor: 'text', lineHeight: '1.8' }}
                   />
-                </>
+                ) : (
+                  <div className="text-center p-12 text-gray-500">
+                    Aucun contenu pour cette page
+                    <Button variant="outline" onClick={fetchStructuredHtml} className="mt-4">Recharger</Button>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-xl border-gray-200 bg-slate-950">
+            <CardHeader className="bg-gradient-to-r from-gray-900 to-gray-800 border-b border-gray-700">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-white text-lg">
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
+                  </svg>
+                  JSON - Page {currentPage}
+                </CardTitle>
+                <Button size="sm" variant="ghost" onClick={copyJSONToClipboard} className="text-white hover:bg-gray-700">
+                  <Copy className="w-4 h-4 mr-2" />
+                  Copier
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3 mb-4 p-3 bg-slate-900 rounded-lg border border-slate-800">
+                <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
+                  {currentPageData?.annotations?.length || 0} annotations
+                </Badge>
+                {currentPageData?.is_validated_by_human && (
+                  <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+                    <CheckCircle className="w-3 h-3 mr-1" />
+                    Validée
+                  </Badge>
+                )}
+              </div>
+
+              {currentPageData?.annotations && currentPageData.annotations.length > 0 ? (
+                <div className="space-y-3 max-h-[calc(70vh-120px)] overflow-y-auto">
+                  {currentPageData.annotations.map((ann) => (
+                    <div key={ann.id} className="p-4 bg-slate-900 rounded-lg border border-slate-800 hover:border-slate-700 transition-all group">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Badge style={{ backgroundColor: `${ann.color}20`, borderColor: ann.color, color: ann.color }} className="text-xs font-semibold">
+                              {ann.type_display}
+                            </Badge>
+                            <span className="text-xs text-slate-500">#{ann.id}</span>
+                          </div>
+                          <p className="text-sm text-slate-200 mb-2 leading-relaxed">
+                            "{ann.text || ann.selected_text}"
+                          </p>
+                          <div className="flex items-center gap-3 text-xs text-slate-500">
+                            <span className="flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                              {ann.confidence}% confiance
+                            </span>
+                            <span>•</span>
+                            <span>{ann.created_by}</span>
+                          </div>
+                        </div>
+                        <Button size="sm" variant="ghost" onClick={() => handleDeleteAnnotation(ann.id)} className="text-red-400 hover:text-red-300 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : (
-                <div className="text-center p-8 text-gray-500">
-                  No structured content available for this document.
-                  <br />
-                  <Button 
-                    variant="outline" 
-                    onClick={fetchStructuredHtml}
-                    className="mt-4"
-                  >
-                    Reload Structured Content
-                  </Button>
+                <div className="text-center p-12 text-slate-500">
+                  <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                  <p>Aucune annotation sur cette page</p>
                 </div>
               )}
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
 
-        {/* Page Navigation */}
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage <= 1}
-              >
+              <Button variant="outline" onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage <= 1}>
                 Previous
               </Button>
 
@@ -705,11 +755,7 @@ const DocumentAnnotate = () => {
                       variant={pageNum === currentPage ? "default" : "outline"}
                       size="sm"
                       onClick={() => handlePageChange(pageNum)}
-                      className={`w-10 h-10 ${
-                        page?.is_annotated ? 'bg-blue-100 text-blue-800' : ''
-                      } ${
-                        page?.is_validated_by_human ? 'bg-green-100 text-green-800' : ''
-                      }`}
+                      className={`w-10 h-10 ${page?.is_annotated ? 'bg-blue-100 text-blue-800' : ''} ${page?.is_validated_by_human ? 'bg-green-100 text-green-800' : ''}`}
                     >
                       {pageNum}
                     </Button>
@@ -717,18 +763,13 @@ const DocumentAnnotate = () => {
                 })}
               </div>
 
-              <Button
-                variant="outline"
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage >= documentData.total_pages}
-              >
+              <Button variant="outline" onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage >= documentData.total_pages}>
                 Next
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Document Metadata (Optional) */}
         {documentData.metadata && (
           <Card>
             <CardHeader>
@@ -736,27 +777,15 @@ const DocumentAnnotate = () => {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="font-medium">Type:</span> {documentData.metadata.type}
-                </div>
-                <div>
-                  <span className="font-medium">Language:</span> {documentData.metadata.language}
-                </div>
-                <div>
-                  <span className="font-medium">Source:</span> {documentData.metadata.source}
-                </div>
-                <div>
-                  <span className="font-medium">Country:</span> {documentData.metadata.country}
-                </div>
+                <div><span className="font-medium">Type:</span> {documentData.metadata.type}</div>
+                <div><span className="font-medium">Language:</span> {documentData.metadata.language}</div>
+                <div><span className="font-medium">Source:</span> {documentData.metadata.source}</div>
+                <div><span className="font-medium">Country:</span> {documentData.metadata.country}</div>
                 {documentData.metadata.publication_date && (
-                  <div>
-                    <span className="font-medium">Publication Date:</span> {documentData.metadata.publication_date}
-                  </div>
+                  <div><span className="font-medium">Publication Date:</span> {documentData.metadata.publication_date}</div>
                 )}
                 {documentData.metadata.version && (
-                  <div>
-                    <span className="font-medium">Version:</span> {documentData.metadata.version}
-                  </div>
+                  <div><span className="font-medium">Version:</span> {documentData.metadata.version}</div>
                 )}
               </div>
             </CardContent>
