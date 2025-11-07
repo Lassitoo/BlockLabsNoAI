@@ -27,6 +27,218 @@ from rawdocs.models import (
     MetadataFeedback, MetadataLearningMetrics, MetadataLog, CustomField, CustomFieldValue
 )
 from .utils import extract_exif_metadata  # Import your actual function
+from django.db import transaction
+from collections import OrderedDict
+
+
+# ==================== HELPER FUNCTIONS (migrated from views.py) ====================
+
+def generate_structured_html(raw_document, user):
+    """Génère et sauvegarde le HTML structuré pour un RawDocument"""
+    try:
+        from documents.models import Document as DocModel
+        from documents.utils.document_processor import DocumentProcessor
+
+        ext = os.path.splitext(raw_document.file.name)[1].lower().lstrip('.')
+        allowed = {'pdf', 'docx', 'doc', 'txt', 'html', 'xlsx', 'xls', 'rtf'}
+        file_type = ext if ext in allowed else 'pdf'
+
+        doc = DocModel.objects.filter(
+            original_file=raw_document.file.name,
+            uploaded_by=raw_document.owner or user
+        ).first()
+
+        if not doc:
+            doc = DocModel(
+                title=raw_document.title or os.path.basename(raw_document.file.name),
+                original_file=raw_document.file,
+                file_type=file_type,
+                file_size=getattr(raw_document.file, 'size', 0),
+                uploaded_by=raw_document.owner or user,
+            )
+            doc.save()
+
+        processor = DocumentProcessor(doc)
+        processor.process_document()
+        structured_html = doc.formatted_content or ''
+
+        # Extraire le CSS généré
+        generated_css = ''
+        if hasattr(doc, 'format_info') and doc.format_info:
+            generated_css = getattr(doc.format_info, 'generated_css', '') or ''
+
+        # SAUVEGARDER dans RawDocument
+        raw_document.structured_html = structured_html
+        raw_document.structured_html_generated_at = timezone.now()
+        raw_document.structured_html_method = 'document_processor'
+        raw_document.structured_html_confidence = 0.0
+        # Sauvegarder aussi le CSS généré dans un champ personnalisé ou en JSON
+        if not hasattr(raw_document, 'structured_html_css'):
+            # Créer un champ temporaire pour stocker le CSS
+            raw_document._structured_html_css = generated_css
+        raw_document.save()
+
+        print(f"✅ HTML structuré généré et sauvé pour le document {raw_document.id}")
+        return structured_html, generated_css
+
+    except Exception as e:
+        print(f"⚠️ Erreur génération HTML structuré: {e}")
+        return "", ""
+
+
+def validate_document_with_pages(document):
+    """Valide un document et extrait ses pages"""
+    if not document.pages_extracted:
+        try:
+            from PyPDF2 import PdfReader
+            reader = PdfReader(document.file.path)
+            pages_text = [page.extract_text() or "" for page in reader.pages]
+
+            with transaction.atomic():
+                for page_num, page_text in enumerate(pages_text, 1):
+                    DocumentPage.objects.create(
+                        document=document,
+                        page_number=page_num,
+                        raw_text=page_text,
+                        cleaned_text=page_text
+                    )
+
+                document.total_pages = len(pages_text)
+                document.pages_extracted = True
+                document.is_validated = True
+                document.validated_at = timezone.now()
+                document.save()
+
+                print(f"✅ Document {document.id} validé avec {document.total_pages} pages")
+
+        except Exception as e:
+            print(f"⚠️ Erreur extraction pages: {e}")
+            raise e
+    else:
+        # Juste marquer comme validé si déjà extrait
+        document.is_validated = True
+        document.validated_at = timezone.now()
+        document.save()
+
+
+def _build_entities_map(annotations_qs, use_display_name=True):
+    """
+    Construit {entité -> [valeurs_uniques]} à partir d'un QuerySet d'annotations.
+    - use_display_name=True : clé = display_name (lisible)
+      sinon clé = name (technique)
+    """
+    entities = OrderedDict()
+    seen_per_key = {}
+
+    for ann in annotations_qs:
+        key = ann.annotation_type.display_name if use_display_name else ann.annotation_type.name
+        val = (ann.selected_text or "").strip()
+        if not val:
+            continue
+
+        if key not in entities:
+            entities[key] = []
+            seen_per_key[key] = set()
+
+        if val not in seen_per_key[key]:
+            entities[key].append(val)
+            seen_per_key[key].add(val)
+
+    return entities
+
+
+def generate_entities_based_page_summary(entities, page_number, document_title):
+    """
+    Résumé NL d'une page à partir du dict {entité -> [valeurs]}.
+    """
+    try:
+        if not entities:
+            return "Aucune entité annotée sur cette page."
+
+        # Préparer un texte compact pour le prompt/backup
+        lines = []
+        total_pairs = 0
+        for ent, vals in entities.items():
+            total_pairs += len(vals)
+            preview = "; ".join(vals[:4]) + ("…" if len(vals) > 4 else "")
+            lines.append(f"- {ent}: {preview}")
+
+        structured_view = "\n".join(lines)
+
+        prompt = f"""Tu es un expert en analyse documentaire.
+Génère un résumé court (3–4 phrases) et fluide basé UNIQUEMENT sur les entités et leurs valeurs.
+
+DOCUMENT: {document_title}
+PAGE: {page_number}
+
+ENTITÉS → VALEURS:
+{structured_view}
+
+Contraintes:
+- Ne liste pas tout; synthétise les thèmes/infos clés.
+- Utilise un ton pro et clair.
+- Termine par le nombre total de paires entité-valeur entre parenthèses.
+
+Réponds UNIQUEMENT par le paragraphe.
+"""
+
+        from rawdocs.regulatory_analyzer import RegulatoryAnalyzer
+        analyzer = RegulatoryAnalyzer()
+        response = analyzer.call_groq_api(prompt, max_tokens=280)
+        return response.strip() if response else f"Page {page_number}: synthèse de {total_pairs} élément(s) annoté(s) sur les entités « {', '.join(list(entities.keys())[:5])}{'…' if len(entities) > 5 else ''} »."
+    except Exception as e:
+        print(f"❌ Erreur génération résumé (page): {e}")
+        # Fallback minimal
+        flat_count = sum(len(v) for v in entities.values())
+        return f"Page {page_number}: {flat_count} valeur(s) annotée(s) sur {len(entities)} entité(s)."
+
+
+def generate_entities_based_document_summary(entities, doc_title, doc_type, total_annotations):
+    """
+    Résumé NL global à partir du dict {entité -> [valeurs]}.
+    """
+    try:
+        if not entities:
+            return "Aucune entité annotée dans ce document."
+
+        # Top entités par volume
+        ranked = sorted(entities.items(), key=lambda kv: len(kv[1]), reverse=True)
+        top_lines = [f"- {k}: {len(v)} valeur(s)" for k, v in ranked[:6]]
+        repartition = "\n".join(top_lines)
+
+        prompt = f"""Tu es un expert en analyse documentaire.
+Produis un résumé exécutif (4–6 phrases) basé UNIQUEMENT sur les entités et leurs valeurs.
+
+DOCUMENT: {doc_title}
+TYPE: {doc_type or '—'}
+TOTAL ANNOTATIONS: {total_annotations}
+
+RÉPARTITION (Top entités par nombre de valeurs):
+{repartition}
+
+Contraintes:
+- Extrais les thèmes majeurs qui se dégagent des entités dominantes.
+- Indique la couverture globale (ex.: diversité des entités, répartition).
+- Reste factuel, ton professionnel, sans lister toutes les valeurs.
+
+Réponds UNIQUEMENT par le paragraphe.
+"""
+
+        from rawdocs.regulatory_analyzer import RegulatoryAnalyzer
+        analyzer = RegulatoryAnalyzer()
+        response = analyzer.call_groq_api(prompt, max_tokens=360)
+        if response:
+            return response.strip()
+
+        # Fallback succinct
+        top_names = [k for k, _ in ranked[:3]]
+        total_values = sum(len(v) for v in entities.values())
+        return (f"Le document agrège {total_values} valeur(s) annotée(s) sur {len(entities)} entité(s). "
+                f"Principales entités : {', '.join(top_names)}.")
+    except Exception as e:
+        print(f"❌ Erreur génération résumé (document): {e}")
+        total_values = sum(len(v) for v in entities.values())
+        return f"Document : {total_values} valeur(s) sur {len(entities)} entité(s)."
 
 
 # ==================== METADATA UPLOAD & MANAGEMENT ====================
@@ -140,7 +352,6 @@ def upload_metadata(request):
         structured_html = ''
         structured_html_css = ''
         try:
-            from .views import generate_structured_html
             structured_html, structured_html_css = generate_structured_html(doc, request.user)
             print(f"✅ Generated structured HTML with CSS")
         except Exception as e:
@@ -1758,8 +1969,7 @@ def api_upload_document(request):
                 metadata = extract_metadonnees(rd.file.path, rd.url or "")
 
                 # Generate structured HTML using your existing function
-                from .views import generate_structured_html
-                structured_html = generate_structured_html(rd, request.user)
+                structured_html, _ = generate_structured_html(rd, request.user)
 
                 # Save metadata
                 if metadata and isinstance(metadata, dict):
@@ -1777,7 +1987,6 @@ def api_upload_document(request):
 
                 # Validate if requested
                 if validate:
-                    from .views import validate_document_with_pages
                     validate_document_with_pages(rd)
 
                 processed_docs.append(rd)
@@ -1822,7 +2031,6 @@ def api_upload_document(request):
                                         metadata['source'] = 'client'
 
                                     # Generate structured HTML with CSS
-                                    from .views import generate_structured_html
                                     structured_html, structured_html_css = generate_structured_html(rd, request.user)
                                     rd._structured_html_css = structured_html_css
 
@@ -1842,7 +2050,6 @@ def api_upload_document(request):
 
                                     # Validate if requested
                                     if validate:
-                                        from .views import validate_document_with_pages
                                         validate_document_with_pages(rd)
 
                                     processed_docs.append(rd)
@@ -1870,7 +2077,6 @@ def api_upload_document(request):
                     metadata['source'] = 'client'
 
                 # Generate structured HTML with CSS
-                from .views import generate_structured_html
                 structured_html, structured_html_css = generate_structured_html(rd, request.user)
                 rd._structured_html_css = structured_html_css
 
@@ -1890,7 +2096,6 @@ def api_upload_document(request):
 
                 # Validate if requested
                 if validate:
-                    from .views import validate_document_with_pages
                     validate_document_with_pages(rd)
 
                 processed_docs.append(rd)
@@ -2055,7 +2260,6 @@ def api_validate_document(request, doc_id):
     document = get_object_or_404(RawDocument, id=doc_id, owner=request.user)
 
     try:
-        from .views import validate_document_with_pages
         validate_document_with_pages(document)
 
         return JsonResponse({
@@ -2137,7 +2341,6 @@ def api_get_structured_html(request, doc_id):
         structured_html_css = ''
         
         if regen or not document.structured_html:
-            from .views import generate_structured_html
             structured_html, structured_html_css = generate_structured_html(document, request.user)
         else:
             structured_html = document.structured_html
@@ -2176,30 +2379,72 @@ def api_get_structured_html(request, doc_id):
 @login_required
 def api_save_structured_edits(request, doc_id):
     try:
-        doc = get_object_or_404(RawDocument, id=doc_id, owner=request.user)
+        # Essayer d'abord avec owner, sinon vérifier l'accès
+        doc = RawDocument.objects.filter(id=doc_id, owner=request.user).first()
+        if not doc:
+            doc = RawDocument.objects.filter(id=doc_id).first()
+            if doc and not doc.is_accessible_by(request.user):
+                return JsonResponse({'success': False, 'error': 'Accès non autorisé'}, status=403)
+        
+        if not doc:
+            return JsonResponse({'success': False, 'error': 'Document non trouvé'}, status=404)
+        
         data = json.loads(request.body)
         edits = data.get('edits', [])
 
+        if not edits:
+            return JsonResponse({'success': False, 'error': 'Aucune modification fournie'}, status=400)
+
         if not doc.structured_html:
-            return JsonResponse({'success': False, 'error': 'No structured HTML'}, status=400)
+            return JsonResponse({'success': False, 'error': 'Aucun HTML structuré à modifier'}, status=400)
 
         soup = BeautifulSoup(doc.structured_html, 'html.parser')
+        updated_count = 0
+
         for edit in edits:
-            elem_id = edit.get('element_id')
+            element_id = edit.get('element_id')
             new_text = edit.get('new_text', '').strip()
-            if elem_id and (elem := soup.find(id=elem_id)):
-                elem.string.replace_with(new_text)
 
-        doc.structured_html = str(soup)
-        doc.save(update_fields=['structured_html'])
+            if not element_id:
+                continue
 
-        # RETOUR OBLIGATOIRE
+            # Chercher par data-element-id (comme dans views.py)
+            element = soup.find(attrs={'data-element-id': element_id})
+            
+            # Si pas trouvé, chercher par id
+            if not element:
+                element = soup.find(id=element_id)
+            
+            if element:
+                element.clear()
+                element.string = new_text
+                updated_count += 1
+                
+                # Log de la modification
+                print(f"✏️ Élément {element_id} modifié: {new_text[:50]}...")
+
+        if updated_count > 0:
+            doc.structured_html = str(soup)
+            doc.structured_html_generated_at = timezone.now()
+            doc.save(update_fields=['structured_html', 'structured_html_generated_at'])
+            
+            print(f"✅ {updated_count} élément(s) sauvegardé(s) pour le document {doc_id}")
+
+        # RETOUR OBLIGATOIRE avec le HTML mis à jour
         return JsonResponse({
-            'structured_html': doc.structured_html
+            'success': True,
+            'structured_html': doc.structured_html,
+            'updated_count': updated_count,
+            'message': f'{updated_count} élément(s) mis à jour avec succès.'
         })
 
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'JSON invalide'}, status=400)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        print(f"❌ Erreur api_save_structured_edits: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
 @require_http_methods(["GET"])

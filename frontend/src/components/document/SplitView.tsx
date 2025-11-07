@@ -241,7 +241,7 @@ export const SplitView = ({ doc }: SplitViewProps) => {
               {structuredHtmlCss && (
                 <style dangerouslySetInnerHTML={{ __html: structuredHtmlCss }} />
               )}
-              
+
               {isLoading ? (
                 <div className="flex items-center justify-center h-full">
                   <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
