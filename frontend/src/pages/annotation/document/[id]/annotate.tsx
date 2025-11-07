@@ -102,18 +102,40 @@ const DocumentAnnotate = () => {
   }, [currentPage, documentData]);
 
   useEffect(() => {
-    if (documentId && currentPage) {
+    if (documentId && !structuredHtml) {
       fetchStructuredHtml();
     }
-  }, [currentPage]);
+  }, [documentId]);
 
   useEffect(() => {
-    if (structuredHtml && annotations.length > 0) {
+    if (structuredHtml && documentData) {
       setTimeout(() => {
+        filterPageContent();
         applyAnnotationHighlights();
       }, 100);
     }
-  }, [annotations, structuredHtml]);
+  }, [structuredHtml, currentPage, documentData]);
+
+  const filterPageContent = () => {
+    const container = document.querySelector('.structured-html-view');
+    if (!container) return;
+
+    // Chercher tous les éléments qui pourraient représenter des pages
+    const allPages = container.querySelectorAll('[class*="page"], [id*="page"], section, .page-content');
+    
+    console.log(`📄 Found ${allPages.length} potential page elements`);
+    
+    if (allPages.length > 0) {
+      // Afficher uniquement la page actuelle (index = currentPage - 1)
+      allPages.forEach((page, index) => {
+        const pageElement = page as HTMLElement;
+        pageElement.style.display = (index === currentPage - 1) ? 'block' : 'none';
+      });
+      console.log(`✅ Showing page ${currentPage} (index ${currentPage - 1})`);
+    } else {
+      console.log('⚠️ No page markers found, showing all content');
+    }
+  };
 
   const fetchDocument = async () => {
     try {
@@ -152,7 +174,7 @@ const DocumentAnnotate = () => {
   const fetchStructuredHtml = async () => {
     setLoadingStructured(true);
     try {
-      const response = await axiosInstance.get(`/document/${documentId}/structured/?page=${currentPage}`);
+      const response = await axiosInstance.get(`/document/${documentId}/structured/`);
       const data = response.data as { success: boolean; structured_html?: string; structured_html_css?: string };
 
       if (data.success) {
@@ -166,12 +188,82 @@ const DocumentAnnotate = () => {
     }
   };
 
+  const resolveXPath = (xpath: string, container: Element): { node: Node; offset: number } | null => {
+    if (!xpath) return null;
+    
+    const parts = xpath.split('::');
+    const pathPart = parts[0];
+    const offset = parseInt(parts[1] || '0');
+    
+    const segments = pathPart.split('/').filter(s => s);
+    let currentNode: Node = container;
+    
+    for (const segment of segments) {
+      const match = segment.match(/^(\w+)\[(\d+)\]$/) || segment.match(/^text\(\)\[(\d+)\]$/);
+      if (!match) continue;
+      
+      if (segment.startsWith('text()')) {
+        const index = parseInt(match[1]) - 1;
+        const textNodes = Array.from(currentNode.childNodes).filter(n => n.nodeType === Node.TEXT_NODE);
+        if (textNodes[index]) {
+          currentNode = textNodes[index];
+        }
+      } else {
+        const tagName = match[1];
+        const index = parseInt(match[2]) - 1;
+        const elements = Array.from(currentNode.childNodes).filter(
+          n => n.nodeType === Node.ELEMENT_NODE && n.nodeName.toLowerCase() === tagName
+        );
+        if (elements[index]) {
+          currentNode = elements[index];
+        }
+      }
+    }
+    
+    return { node: currentNode, offset };
+  };
+
+  const createAnnotationSpan = (annotation: any, matchText: string): HTMLSpanElement => {
+    const span = document.createElement('span');
+    span.className = 'inline-annotation';
+    span.dataset.annotationId = annotation.id.toString();
+    span.dataset.annotationType = annotation.type_display;
+    span.dataset.annotationColor = annotation.color;
+    span.style.cssText = `
+      background-color: ${annotation.color}30;
+      border-bottom: 2px solid ${annotation.color};
+      padding: 2px 4px;
+      margin: 0 1px;
+      border-radius: 3px;
+      cursor: pointer;
+      display: inline;
+      position: relative;
+      transition: all 0.2s ease;
+    `;
+    span.textContent = matchText;
+
+    // Click to delete
+    span.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (confirm(`Supprimer cette annotation?\n"${matchText.substring(0, 50)}..."`)) {
+        handleDeleteAnnotation(annotation.id);
+      }
+    };
+
+    return span;
+  };
+
   const applyAnnotationHighlights = () => {
   const container = document.querySelector('.structured-html-view');
   if (!container) {
     console.log('❌ Container not found');
     return;
   }
+
+  // Get annotations for current page only
+  const currentPageData = documentData?.pages.find(p => p.page_number === currentPage);
+  const pageAnnotations = currentPageData?.annotations || [];
 
   // Remove old highlights first
   container.querySelectorAll('.inline-annotation').forEach(el => {
@@ -181,25 +273,56 @@ const DocumentAnnotate = () => {
   });
   container.normalize();
 
-  console.log(`🎨 Applying ${annotations.length} annotations`);
+  console.log(`🎨 Applying ${pageAnnotations.length} annotations for page ${currentPage}`);
 
   // Apply each annotation
-  annotations.forEach((annotation) => {
+  pageAnnotations.forEach((annotation) => {
     const searchText = (annotation.text || annotation.selected_text || '').trim();
     if (!searchText) {
       console.warn('⚠️ Skipping empty annotation:', annotation.id);
       return;
     }
 
-    console.log(`🔍 Searching for: "${searchText.substring(0, 50)}..."`);
+    // Try to use XPath if available
+    if (annotation.start_xpath && annotation.end_xpath) {
+      const startInfo = resolveXPath(annotation.start_xpath, container);
+      const endInfo = resolveXPath(annotation.end_xpath, container);
+      
+      if (startInfo && endInfo && startInfo.node.nodeType === Node.TEXT_NODE) {
+        const textNode = startInfo.node;
+        const text = textNode.textContent || '';
+        const parent = textNode.parentNode;
+        
+        if (!parent) return;
+        
+        const before = text.substring(0, startInfo.offset);
+        const match = text.substring(startInfo.offset, endInfo.node === startInfo.node ? endInfo.offset : text.length);
+        const after = text.substring(endInfo.node === startInfo.node ? endInfo.offset : text.length);
+        
+        console.log(`✅ Using XPath for annotation ${annotation.id}`);
+        
+        // Create annotation span
+        const span = createAnnotationSpan(annotation, match);
+        
+        // Replace text node with annotated version
+        const fragment = document.createDocumentFragment();
+        if (before) fragment.appendChild(document.createTextNode(before));
+        fragment.appendChild(span);
+        if (after) fragment.appendChild(document.createTextNode(after));
+        
+        parent.replaceChild(fragment, textNode);
+        return;
+      }
+    }
 
-    // Create tree walker to find text
+    // Fallback: search for first occurrence (old behavior)
+    console.log(`🔍 Searching for: "${searchText.substring(0, 50)}..." (no XPath)`);
+
     const walker = document.createTreeWalker(
       container,
       NodeFilter.SHOW_TEXT,
       {
         acceptNode: (node) => {
-          // Skip if already inside an annotation
           let parent = node.parentNode;
           while (parent && parent !== container) {
             if (parent instanceof Element && parent.classList?.contains('inline-annotation')) {
@@ -231,32 +354,7 @@ const DocumentAnnotate = () => {
         const after = text.substring(index + searchText.length);
 
         // Create annotation span
-        const span = document.createElement('span');
-        span.className = 'inline-annotation';
-        span.dataset.annotationId = annotation.id.toString();
-        span.dataset.annotationType = annotation.type_display;
-        span.dataset.annotationColor = annotation.color;
-        span.style.cssText = `
-          background-color: ${annotation.color}30;
-          border-bottom: 2px solid ${annotation.color};
-          padding: 2px 4px;
-          margin: 0 1px;
-          border-radius: 3px;
-          cursor: pointer;
-          display: inline;
-          position: relative;
-          transition: all 0.2s ease;
-        `;
-        span.textContent = match;
-
-        // Click to delete
-        span.onclick = (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          if (confirm(`Supprimer cette annotation?\n"${searchText.substring(0, 50)}..."`)) {
-            handleDeleteAnnotation(annotation.id);
-          }
-        };
+        const span = createAnnotationSpan(annotation, match);
 
         // Replace text node with annotated version
         const fragment = document.createDocumentFragment();
@@ -415,11 +513,53 @@ const DocumentAnnotate = () => {
     }
   };
 
+  const getXPath = (node: Node, offset: number): string => {
+    const container = document.querySelector('.structured-html-view');
+    if (!container || !node) return '';
+    
+    let path = '';
+    let currentNode: Node | null = node;
+    
+    while (currentNode && currentNode !== container) {
+      if (currentNode.nodeType === Node.ELEMENT_NODE) {
+        const element = currentNode as Element;
+        let index = 0;
+        let sibling = element.previousSibling;
+        
+        while (sibling) {
+          if (sibling.nodeType === Node.ELEMENT_NODE && sibling.nodeName === element.nodeName) {
+            index++;
+          }
+          sibling = sibling.previousSibling;
+        }
+        
+        const tagName = element.nodeName.toLowerCase();
+        path = `/${tagName}[${index + 1}]${path}`;
+      } else if (currentNode.nodeType === Node.TEXT_NODE) {
+        let textIndex = 0;
+        let sibling = currentNode.previousSibling;
+        
+        while (sibling) {
+          if (sibling.nodeType === Node.TEXT_NODE) {
+            textIndex++;
+          }
+          sibling = sibling.previousSibling;
+        }
+        
+        path = `/text()[${textIndex + 1}]${path}`;
+      }
+      
+      currentNode = currentNode.parentNode;
+    }
+    
+    return path + `::${offset}`;
+  };
+
   const handleTextSelection = async () => {
     const selection = window.getSelection();
     const selectedTextContent = selection?.toString().trim();
     
-    if (!selectedTextContent) return;
+    if (!selectedTextContent || !selection || selection.rangeCount === 0) return;
     
     // Vérifier qu'un type d'annotation est sélectionné
     if (!selectedAnnotationType) {
@@ -432,10 +572,16 @@ const DocumentAnnotate = () => {
       const page = documentData?.pages.find(p => p.page_number === currentPage);
       if (!page) return;
 
+      const range = selection.getRangeAt(0);
+      const startXPath = getXPath(range.startContainer, range.startOffset);
+      const endXPath = getXPath(range.endContainer, range.endOffset);
+
       const payload = {
         page_id: page.id,
         selected_text: selectedTextContent,
         annotation_type_id: parseInt(selectedAnnotationType),
+        start_xpath: startXPath,
+        end_xpath: endXPath,
         start_pos: 0,
         end_pos: selectedTextContent.length,
         mode: 'structured'
@@ -455,8 +601,9 @@ const DocumentAnnotate = () => {
           window.getSelection()?.removeAllRanges();
         }
         
-        // Appliquer les highlights immédiatement
+        // Réappliquer le filtre de page et les highlights
         setTimeout(() => {
+          filterPageContent();
           applyAnnotationHighlights();
         }, 100);
       }
@@ -666,13 +813,23 @@ const DocumentAnnotate = () => {
               <div className="flex items-center gap-1 flex-wrap max-w-3xl">
                 {Array.from({ length: documentData.total_pages }, (_, i) => i + 1).map((pageNum) => {
                   const page = documentData.pages.find(p => p.page_number === pageNum);
+                  const isCurrentPage = pageNum === currentPage;
+                  
                   return (
                     <Button
                       key={pageNum}
-                      variant={pageNum === currentPage ? "default" : "outline"}
+                      variant={isCurrentPage ? "default" : "outline"}
                       size="sm"
                       onClick={() => handlePageChange(pageNum)}
-                      className={`w-10 h-10 ${page?.is_annotated ? 'bg-blue-100 text-blue-800' : ''} ${page?.is_validated_by_human ? 'bg-green-100 text-green-800' : ''}`}
+                      className={`w-10 h-10 ${
+                        isCurrentPage 
+                          ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                          : page?.is_validated_by_human 
+                            ? 'bg-green-100 text-green-800 hover:bg-green-200' 
+                            : page?.is_annotated 
+                              ? 'bg-blue-100 text-blue-800 hover:bg-blue-200' 
+                              : ''
+                      }`}
                     >
                       {pageNum}
                     </Button>

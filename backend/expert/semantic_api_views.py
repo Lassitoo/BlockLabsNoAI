@@ -69,26 +69,29 @@ def get_document_json(request, id):
                 is_validated=True
             ).select_related('annotation_type', 'page')
             
+            # Grouper les entités par type (seulement les textes, pas les détails)
             entities_by_type = {}
             for ann in all_annotations:
-                type_name = ann.annotation_type.name if ann.annotation_type else 'unknown'
-                if type_name not in entities_by_type:
-                    entities_by_type[type_name] = []
+                type_display = ann.annotation_type.display_name if ann.annotation_type else 'Unknown'
+                if type_display not in entities_by_type:
+                    entities_by_type[type_display] = []
                 
-                entities_by_type[type_name].append({
-                    'id': ann.id,
-                    'text': ann.selected_text,
-                    'page_number': ann.page.page_number,
-                    'start_offset': ann.start_offset,
-                    'end_offset': ann.end_offset,
-                    'confidence': ann.confidence_score if hasattr(ann, 'confidence_score') else 1.0,
-                    'validated': ann.is_validated
-                })
+                # Ajouter uniquement le texte (pas de duplication)
+                text = ann.selected_text or ann.text or ''
+                if text and text not in entities_by_type[type_display]:
+                    entities_by_type[type_display].append(text)
             
             annotations_json = {
-                'document_id': document.id,
+                'document': {
+                    'id': str(document.id),
+                    'title': document.title or f'Document {document.id}',
+                    'doc_type': document.doc_type or 'unknown',
+                    'source': document.source or 'client',
+                    'total_pages': total_pages,
+                    'total_annotations': all_annotations.count()
+                },
                 'entities': entities_by_type,
-                'total_annotations': all_annotations.count()
+                'generated_at': timezone.now().isoformat()
             }
 
         return JsonResponse({
@@ -408,26 +411,26 @@ def get_page_json(request, id, page_number):
                 entities_by_type = {}
                 
                 for ann in annotations:
-                    type_name = ann.annotation_type.name if ann.annotation_type else 'unknown'
-                    if type_name not in entities_by_type:
-                        entities_by_type[type_name] = []
+                    type_display = ann.annotation_type.display_name if ann.annotation_type else 'Unknown'
+                    if type_display not in entities_by_type:
+                        entities_by_type[type_display] = []
                     
-                    entities_by_type[type_name].append({
-                        'id': ann.id,
-                        'text': ann.selected_text,
-                        'start_offset': ann.start_offset,
-                        'end_offset': ann.end_offset,
-                        'start_xpath': ann.start_xpath,
-                        'end_xpath': ann.end_xpath,
-                        'confidence': ann.confidence_score if hasattr(ann, 'confidence_score') else 1.0,
-                        'validated': ann.is_validated,
-                        'validation_status': ann.validation_status
-                    })
+                    # Ajouter uniquement le texte (pas de duplication)
+                    text = ann.selected_text or ann.text or ''
+                    if text and text not in entities_by_type[type_display]:
+                        entities_by_type[type_display].append(text)
                 
                 annotations_json = {
-                    'page_number': page.page_number,
+                    'document': {
+                        'id': str(document.id),
+                        'title': document.title or f'Document {document.id}',
+                        'doc_type': document.doc_type or 'unknown',
+                        'source': document.source or 'client',
+                        'page_number': page.page_number,
+                        'total_annotations': annotations.count()
+                    },
                     'entities': entities_by_type,
-                    'total_annotations': annotations.count()
+                    'generated_at': timezone.now().isoformat()
                 }
 
             return JsonResponse({

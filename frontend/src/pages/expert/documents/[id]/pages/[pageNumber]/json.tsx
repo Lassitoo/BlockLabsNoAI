@@ -224,11 +224,17 @@ export default function PageJsonViewer() {
           <CardContent>
             {jsonData && Object.keys(jsonData).length > 0 ? (
               <>
+                <Alert className="mb-4">
+                  <AlertDescription>
+                    Ce JSON contient toutes les annotations validées par l'expert pour la page {currentPage}, organisées par entités.
+                  </AlertDescription>
+                </Alert>
+
                 <JsonViewer
                   value={jsonData}
                   title={`JSON Page ${currentPage}`}
                   height="600px"
-                  readOnly={false}
+                  readOnly={true}
                   onCopy={handleCopyJson}
                   onDownload={handleDownloadJson}
                   showActions={true}
