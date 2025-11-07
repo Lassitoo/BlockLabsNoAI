@@ -2337,7 +2337,13 @@ def api_delete_document(request, doc_id):
 @login_required
 def api_get_structured_html(request, doc_id):
     """API endpoint to get structured HTML with CSS"""
-    document = get_object_or_404(RawDocument, id=doc_id, owner=request.user)
+    # Allow access to validated documents for annotation, or owner's documents
+    try:
+        document = RawDocument.objects.get(id=doc_id, owner=request.user)
+    except RawDocument.DoesNotExist:
+        # If not owner, check if document is validated (for annotation access)
+        document = get_object_or_404(RawDocument, id=doc_id, is_validated=True)
+    
     regen = request.GET.get('regen', '0') == '1'
 
     try:
