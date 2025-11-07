@@ -37,6 +37,7 @@ const DocumentMetadataView = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [structuredHtml, setStructuredHtml] = useState<string>('');
+  const [structuredHtmlCss, setStructuredHtmlCss] = useState<string>('');
   const [loadingStructured, setLoadingStructured] = useState(false);
 
   useEffect(() => {
@@ -61,6 +62,7 @@ const DocumentMetadataView = () => {
         const data = await response.json();
         if (data.success) {
           setStructuredHtml(data.structured_html || '');
+          setStructuredHtmlCss(data.structured_html_css || '');
         }
       }
     } catch (error) {
@@ -323,42 +325,41 @@ const DocumentMetadataView = () => {
               Contenu Structuré
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            {loadingStructured ? (
-              <div className="flex items-center justify-center p-8">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                  <p className="text-gray-600">Chargement du contenu structuré...</p>
+          <CardContent className="p-0">
+            <div className="h-[700px] overflow-y-auto p-4 bg-background">
+              {/* Inject CSS dynamically if available */}
+              {structuredHtmlCss && (
+                <style dangerouslySetInnerHTML={{ __html: structuredHtmlCss }} />
+              )}
+
+              {loadingStructured ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600">Chargement du contenu structuré...</p>
+                  </div>
                 </div>
-              </div>
-            ) : structuredHtml ? (
-              <div
-                className="structured-html-view prose max-w-none"
-                dangerouslySetInnerHTML={{ __html: structuredHtml }}
-                style={{
-                  padding: '20px',
-                  background: 'white',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px',
-                  minHeight: '500px',
-                  maxHeight: '800px',
-                  overflowY: 'auto'
-                }}
-              />
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <FileText className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                <p className="text-lg font-medium mb-2">Aucun contenu structuré disponible</p>
-                <p className="text-sm">Le contenu structuré n&apos;a pas encore été extrait pour ce document</p>
-                <Button
-                  variant="outline"
-                  onClick={fetchStructuredHtml}
-                  className="mt-4"
-                >
-                  Recharger le contenu
-                </Button>
-              </div>
-            )}
+              ) : structuredHtml ? (
+                <div
+                  className="pdf-document-container prose prose-sm max-w-none bg-white"
+                  dangerouslySetInnerHTML={{ __html: structuredHtml }}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center text-muted-foreground">
+                    <FileText className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                    <p className="text-lg font-medium mb-2">Aucun contenu structuré disponible</p>
+                    <p className="text-sm mb-4">Le contenu structuré n&apos;a pas encore été extrait pour ce document</p>
+                    <Button
+                      variant="outline"
+                      onClick={fetchStructuredHtml}
+                    >
+                      Recharger le contenu
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>

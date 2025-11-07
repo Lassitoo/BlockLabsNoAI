@@ -78,6 +78,7 @@ const DocumentAnnotate = () => {
   const [showAiAnnotations, setShowAiAnnotations] = useState(true);
   const [viewMode, setViewMode] = useState<'raw' | 'structured'>('structured');
   const [structuredHtml, setStructuredHtml] = useState<string>('');
+  const [structuredHtmlCss, setStructuredHtmlCss] = useState<string>('');
   const [loadingStructured, setLoadingStructured] = useState(false);
   const [showAddTypeModal, setShowAddTypeModal] = useState(false);
   const [newTypeDisplayName, setNewTypeDisplayName] = useState('');
@@ -152,10 +153,11 @@ const DocumentAnnotate = () => {
     setLoadingStructured(true);
     try {
       const response = await axiosInstance.get(`/document/${documentId}/structured/?page=${currentPage}`);
-      const data = response.data as { success: boolean; structured_html?: string };
+      const data = response.data as { success: boolean; structured_html?: string; structured_html_css?: string };
 
       if (data.success) {
         setStructuredHtml(data.structured_html || '');
+        setStructuredHtmlCss(data.structured_html_css || '');
       }
     } catch (error) {
       console.error('Error fetching structured HTML:', error);
@@ -647,23 +649,30 @@ const DocumentAnnotate = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="max-h-[70vh] overflow-y-auto p-6 bg-white">
+              <div className="h-[700px] overflow-y-auto p-4 bg-background">
+                {/* Inject CSS dynamically if available */}
+                {structuredHtmlCss && (
+                  <style dangerouslySetInnerHTML={{ __html: structuredHtmlCss }} />
+                )}
+
                 {loadingStructured ? (
-                  <div className="flex items-center justify-center p-12">
+                  <div className="flex items-center justify-center h-full">
                     <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
                     <span className="ml-3 text-gray-600">Chargement...</span>
                   </div>
                 ) : structuredHtml ? (
                   <div
-                    className="structured-html-view"
+                    className="pdf-document-container prose prose-sm max-w-none bg-white structured-html-view"
                     dangerouslySetInnerHTML={{ __html: structuredHtml }}
                     onMouseUp={handleTextSelection}
-                    style={{ userSelect: 'text', cursor: 'text', lineHeight: '1.8' }}
                   />
                 ) : (
-                  <div className="text-center p-12 text-gray-500">
-                    Aucun contenu pour cette page
-                    <Button variant="outline" onClick={fetchStructuredHtml} className="mt-4">Recharger</Button>
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center text-gray-500">
+                      <FileText className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                      <p className="mb-4">Aucun contenu pour cette page</p>
+                      <Button variant="outline" onClick={fetchStructuredHtml}>Recharger</Button>
+                    </div>
                   </div>
                 )}
               </div>
