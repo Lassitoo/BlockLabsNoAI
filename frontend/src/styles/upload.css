@@ -133,3 +133,60 @@
   pointer-events: none !important;
   z-index: 1 !important;
 }
+
+/* Annotation highlights */
+.inline-annotation {
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.inline-annotation:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+/* Tooltip personnalisé au hover */
+.inline-annotation::before {
+  content: attr(data-annotation-type);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-5px);
+  background-color: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.inline-annotation:hover::before {
+  opacity: 1;
+  transform: translateX(-50%) translateY(-8px);
+}
+
+/* Petite flèche pour le tooltip */
+.inline-annotation::after {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(3px);
+  border: 5px solid transparent;
+  border-top-color: rgba(0, 0, 0, 0.9);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 1000;
+}
+
+.inline-annotation:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0px);
+}

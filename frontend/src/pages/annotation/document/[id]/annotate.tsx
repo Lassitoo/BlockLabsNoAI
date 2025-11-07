@@ -6,6 +6,7 @@ import { ArrowLeft, Eye, EyeOff, Bot, CheckCircle, FileText, Plus, Trash2, Copy 
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import axiosInstance from '@/lib/axios';
+import { AnnotationPanel } from '@/components/annotation/AnnotationPanel';
 
 interface Document {
   id: number;
@@ -82,7 +83,6 @@ const DocumentAnnotate = () => {
   const [loadingStructured, setLoadingStructured] = useState(false);
   const [showAddTypeModal, setShowAddTypeModal] = useState(false);
   const [newTypeDisplayName, setNewTypeDisplayName] = useState('');
-  const [selectedText, setSelectedText] = useState('');
 
   useEffect(() => {
     if (documentId) {
@@ -234,6 +234,8 @@ const DocumentAnnotate = () => {
         const span = document.createElement('span');
         span.className = 'inline-annotation';
         span.dataset.annotationId = annotation.id.toString();
+        span.dataset.annotationType = annotation.type_display;
+        span.dataset.annotationColor = annotation.color;
         span.style.cssText = `
           background-color: ${annotation.color}30;
           border-bottom: 2px solid ${annotation.color};
@@ -243,25 +245,9 @@ const DocumentAnnotate = () => {
           cursor: pointer;
           display: inline;
           position: relative;
+          transition: all 0.2s ease;
         `;
         span.textContent = match;
-
-        // Add type label
-        const label = document.createElement('span');
-        label.className = 'ann-label';
-        label.style.cssText = `
-          font-size: 0.65rem;
-          font-weight: 700;
-          margin-left: 4px;
-          padding: 2px 6px;
-          border-radius: 4px;
-          background: rgba(0,0,0,0.8);
-          color: white;
-          white-space: nowrap;
-          display: inline;
-        `;
-        label.textContent = annotation.type_display;
-        span.appendChild(label);
 
         // Click to delete
         span.onclick = (e) => {
@@ -429,69 +415,60 @@ const DocumentAnnotate = () => {
     }
   };
 
-  const handleTextSelection = () => {
+  const handleTextSelection = async () => {
     const selection = window.getSelection();
-    if (selection && selection.toString().trim()) {
-      setSelectedText(selection.toString().trim());
+    const selectedTextContent = selection?.toString().trim();
+    
+    if (!selectedTextContent) return;
+    
+    // Vérifier qu'un type d'annotation est sélectionné
+    if (!selectedAnnotationType) {
+      alert('⚠️ Veuillez d\'abord sélectionner un type d\'annotation');
+      return;
+    }
+
+    // Créer automatiquement l'annotation
+    try {
+      const page = documentData?.pages.find(p => p.page_number === currentPage);
+      if (!page) return;
+
+      const payload = {
+        page_id: page.id,
+        selected_text: selectedTextContent,
+        annotation_type_id: parseInt(selectedAnnotationType),
+        start_pos: 0,
+        end_pos: selectedTextContent.length,
+        mode: 'structured'
+      };
+
+      const response = await axiosInstance.post('/annotation/add/', payload);
+      const data = response.data;
+
+      if (data.success) {
+        console.log('✅ Annotation créée automatiquement');
+        
+        // Recharger les données du document
+        await fetchDocument();
+        
+        // Nettoyer la sélection immédiatement
+        if (window.getSelection) {
+          window.getSelection()?.removeAllRanges();
+        }
+        
+        // Appliquer les highlights immédiatement
+        setTimeout(() => {
+          applyAnnotationHighlights();
+        }, 100);
+      }
+    } catch (error) {
+      console.error('Error adding annotation:', error);
+      alert('❌ Erreur lors de l\'ajout de l\'annotation');
     }
   };
 
   const handleAnnotateSelection = async () => {
-  if (!selectedText || !selectedAnnotationType) {
-    alert('Veuillez sélectionner du texte et un type d\'annotation');
-    return;
-  }
-
-  try {
-    const page = documentData?.pages.find(p => p.page_number === currentPage);
-    if (!page) return;
-
-    const payload = {
-      page_id: page.id,
-      selected_text: selectedText,
-      annotation_type_id: parseInt(selectedAnnotationType),
-      start_pos: 0,
-      end_pos: selectedText.length,
-      mode: 'structured'
-    };
-
-    const response = await axiosInstance.post('/annotation/add/', payload);
-    const data = response.data;
-
-    if (data.success) {
-      await fetchDocument();
-      setSelectedText('');
-      if (window.getSelection) {
-        window.getSelection()?.removeAllRanges();
-      }
-      alert('✅ Annotation ajoutée!');
-    }
-  } catch (error) {
-    console.error('Error adding annotation:', error);
-    alert('❌ Erreur lors de l\'ajout de l\'annotation');
-  }
-};
-
-  const copyJSONToClipboard = () => {
-    const json = JSON.stringify({
-      page_number: currentPage,
-      page_id: currentPageData?.id,
-      total_annotations: currentPageData?.annotations?.length || 0,
-      is_validated: currentPageData?.is_validated_by_human || false,
-      validated_by: currentPageData?.validated_by || null,
-      annotations: currentPageData?.annotations?.map(ann => ({
-        id: ann.id,
-        text: ann.text || ann.selected_text,
-        type: ann.type_display,
-        color: ann.color,
-        confidence: ann.confidence,
-        created_by: ann.created_by,
-        mode: ann.mode
-      })) || []
-    }, null, 2);
-
-    navigator.clipboard.writeText(json);
-    alert('✅ JSON copié dans le presse-papier!');
+    // Cette fonction n'est plus nécessaire mais on la garde pour compatibilité
+    await handleTextSelection();
   };
 
   if (loading) {
@@ -543,24 +520,26 @@ const DocumentAnnotate = () => {
             )}
           </div>
         </div>
-
         <Card>
           <CardContent className="pt-6">
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium mb-2 block">Types d'Annotation</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-medium">Types d'Annotation</label>
+                  {selectedAnnotationType && (
+                    <span className="text-xs text-green-600 font-medium">
+                      ✓ Sélectionnez du texte pour annoter automatiquement
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   {annotationTypes.map((type) => (
                     <Button
                       key={type.id}
-                      variant={selectedAnnotationType === type.id.toString() ? "default" : "outline"}
+                      variant={selectedAnnotationType === type.id.toString() ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => setSelectedAnnotationType(type.id.toString())}
-                      style={{
-                        backgroundColor: selectedAnnotationType === type.id.toString() ? type.color : 'transparent',
-                        borderColor: type.color,
-                        color: selectedAnnotationType === type.id.toString() ? 'white' : type.color
-                      }}
+                      className={selectedAnnotationType === type.id.toString() ? 'bg-blue-600' : ''}
                     >
                       <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: type.color }} />
                       {type.display_name}
@@ -572,18 +551,6 @@ const DocumentAnnotate = () => {
                   </Button>
                 </div>
               </div>
-
-              {selectedText && (
-                <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-blue-900">Texte sélectionné:</p>
-                    <p className="text-sm text-blue-700 truncate">{selectedText}</p>
-                  </div>
-                  <Button size="sm" onClick={handleAnnotateSelection} disabled={!selectedAnnotationType} className="bg-blue-600 hover:bg-blue-700">
-                    Annoter
-                  </Button>
-                </div>
-              )}
 
               <div className="flex items-center justify-between pt-2 border-t">
                 <div className="flex items-center gap-2">
@@ -679,73 +646,14 @@ const DocumentAnnotate = () => {
             </CardContent>
           </Card>
 
-          <Card className="shadow-xl border-gray-200 bg-slate-950">
-            <CardHeader className="bg-gradient-to-r from-gray-900 to-gray-800 border-b border-gray-700">
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2 text-white text-lg">
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
-                  </svg>
-                  JSON - Page {currentPage}
-                </CardTitle>
-                <Button size="sm" variant="ghost" onClick={copyJSONToClipboard} className="text-white hover:bg-gray-700">
-                  <Copy className="w-4 h-4 mr-2" />
-                  Copier
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-3 mb-4 p-3 bg-slate-900 rounded-lg border border-slate-800">
-                <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
-                  {currentPageData?.annotations?.length || 0} annotations
-                </Badge>
-                {currentPageData?.is_validated_by_human && (
-                  <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-                    <CheckCircle className="w-3 h-3 mr-1" />
-                    Validée
-                  </Badge>
-                )}
-              </div>
-
-              {currentPageData?.annotations && currentPageData.annotations.length > 0 ? (
-                <div className="space-y-3 max-h-[calc(70vh-120px)] overflow-y-auto">
-                  {currentPageData.annotations.map((ann) => (
-                    <div key={ann.id} className="p-4 bg-slate-900 rounded-lg border border-slate-800 hover:border-slate-700 transition-all group">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge style={{ backgroundColor: `${ann.color}20`, borderColor: ann.color, color: ann.color }} className="text-xs font-semibold">
-                              {ann.type_display}
-                            </Badge>
-                            <span className="text-xs text-slate-500">#{ann.id}</span>
-                          </div>
-                          <p className="text-sm text-slate-200 mb-2 leading-relaxed">
-                            "{ann.text || ann.selected_text}"
-                          </p>
-                          <div className="flex items-center gap-3 text-xs text-slate-500">
-                            <span className="flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                              {ann.confidence}% confiance
-                            </span>
-                            <span>•</span>
-                            <span>{ann.created_by}</span>
-                          </div>
-                        </div>
-                        <Button size="sm" variant="ghost" onClick={() => handleDeleteAnnotation(ann.id)} className="text-red-400 hover:text-red-300 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center p-12 text-slate-500">
-                  <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                  <p>Aucune annotation sur cette page</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <AnnotationPanel
+            pageNumber={currentPage}
+            totalPages={documentData.total_pages}
+            annotations={currentPageData?.annotations || []}
+            annotationTypes={annotationTypes}
+            onDeleteAnnotation={handleDeleteAnnotation}
+            onRefresh={fetchDocument}
+          />
         </div>
 
         <Card>
