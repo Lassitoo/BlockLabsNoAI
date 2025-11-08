@@ -113,7 +113,7 @@ const DocumentAnnotate = () => {
         applyAnnotationHighlights();
       }, 100);
     }
-  }, [structuredHtml, currentPage, documentData]);
+  }, [structuredHtml, currentPage, documentData, selectedAnnotationType, annotations]);
 
   const filterPageContent = () => {
     const container = document.querySelector('.structured-html-view');
