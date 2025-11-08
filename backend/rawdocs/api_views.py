@@ -1788,13 +1788,13 @@ def serialize_document(document):
                 structured_html_css = getattr(doc.format_info, 'generated_css', '') or ''
     except Exception as e:
         print(f"⚠️ Could not extract CSS: {e}")
-    
+
     # Extract custom fields
     custom_fields = {
         v.field.name: v.value
         for v in CustomFieldValue.objects.filter(document=document)
     }
-    
+
     return {
         'id': str(document.id),
         'file_name': os.path.basename(document.file.name) if document.file else '',
@@ -2286,7 +2286,7 @@ def api_get_document(request, doc_id):
     try:
         # Essayer d'abord avec owner
         document = RawDocument.objects.filter(id=doc_id, owner=request.user).first()
-        
+
         # Si pas trouvé, vérifier si l'utilisateur a accès (expert, admin, etc.)
         if not document:
             document = RawDocument.objects.filter(id=doc_id).first()
@@ -2295,7 +2295,7 @@ def api_get_document(request, doc_id):
                     'success': False,
                     'error': 'Accès non autorisé à ce document'
                 }, status=403)
-        
+
         if not document:
             return JsonResponse({
                 'success': False,
@@ -2343,12 +2343,12 @@ def api_get_structured_html(request, doc_id):
     except RawDocument.DoesNotExist:
         # If not owner, check if document is validated (for annotation access)
         document = get_object_or_404(RawDocument, id=doc_id, is_validated=True)
-    
+
     regen = request.GET.get('regen', '0') == '1'
 
     try:
         structured_html_css = ''
-        
+
         if regen or not document.structured_html:
             structured_html, structured_html_css = generate_structured_html(document, request.user)
         else:
@@ -2367,6 +2367,24 @@ def api_get_structured_html(request, doc_id):
                         structured_html_css = getattr(doc.format_info, 'generated_css', '') or ''
             except Exception as e:
                 print(f"⚠️ Could not extract CSS: {e}")
+
+        # ✅ Ajouter les IDs aux éléments éditables si manquants
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(structured_html, 'html.parser')
+        editable_elements = soup.select('p, h1, h2, h3, h4, h5, h6, li, td, th, div')
+        print(f"🔧 Ajout d'IDs: {len(editable_elements)} éléments trouvés")
+
+        ids_added = 0
+        for i, el in enumerate(editable_elements):
+            element_id = f'editable-{i}'
+            if not el.has_attr('id'):
+                el['id'] = element_id
+                ids_added += 1
+            if not el.has_attr('data-element-id'):
+                el['data-element-id'] = element_id
+
+        print(f"✅ {ids_added} IDs ajoutés sur {len(editable_elements)} éléments")
+        structured_html = str(soup)
 
         return JsonResponse({
             'success': True,
@@ -2388,26 +2406,25 @@ def api_get_structured_html(request, doc_id):
 @login_required
 def api_save_structured_edits(request, doc_id):
     try:
-        # Essayer d'abord avec owner, sinon vérifier l'accès
-        doc = RawDocument.objects.filter(id=doc_id, owner=request.user).first()
-        if not doc:
-            doc = RawDocument.objects.filter(id=doc_id).first()
-            if doc and not doc.is_accessible_by(request.user):
-                return JsonResponse({'success': False, 'error': 'Accès non autorisé'}, status=403)
-        
-        if not doc:
-            return JsonResponse({'success': False, 'error': 'Document non trouvé'}, status=404)
-        
+        doc = get_object_or_404(RawDocument, id=doc_id, owner=request.user)
         data = json.loads(request.body)
         edits = data.get('edits', [])
 
-        if not edits:
-            return JsonResponse({'success': False, 'error': 'Aucune modification fournie'}, status=400)
-
         if not doc.structured_html:
-            return JsonResponse({'success': False, 'error': 'Aucun HTML structuré à modifier'}, status=400)
+            return JsonResponse({'success': False, 'error': 'No structured HTML'}, status=400)
 
+        from bs4 import BeautifulSoup
         soup = BeautifulSoup(doc.structured_html, 'html.parser')
+
+        # Fallback: Inject IDs if any are missing (ensures consistency)
+        editable_elements = soup.select('p, h1, h2, h3, h4, h5, h6, li, td, th, div')
+        for i, el in enumerate(editable_elements):
+            element_id = f'editable-{i}'
+            if not el.has_attr('data-element-id'):
+                el['data-element-id'] = element_id
+            if not el.has_attr('id'):
+                el['id'] = element_id  # Ajouter aussi l'attribut id pour le frontend
+
         updated_count = 0
 
         for edit in edits:
@@ -2417,40 +2434,36 @@ def api_save_structured_edits(request, doc_id):
             if not element_id:
                 continue
 
-            # Chercher par data-element-id (comme dans views.py)
-            element = soup.find(attrs={'data-element-id': element_id})
-            
-            # Si pas trouvé, chercher par id
+            # Find by id or data-element-id
+            element = soup.find(id=element_id)
             if not element:
-                element = soup.find(id=element_id)
-            
+                element = soup.find(attrs={'data-element-id': element_id})
+
             if element:
+                old_text = element.get_text().strip()
                 element.clear()
                 element.string = new_text
                 updated_count += 1
-                
-                # Log de la modification
-                print(f"✏️ Élément {element_id} modifié: {new_text[:50]}...")
+
+                MetadataLog.objects.create(
+                    document=doc,
+                    field_name='edited_text_' + element_id[:200],
+                    old_value=old_text[:2000],
+                    new_value=new_text[:2000],
+                    modified_by=request.user
+                )
 
         if updated_count > 0:
             doc.structured_html = str(soup)
-            doc.structured_html_generated_at = timezone.now()
-            doc.save(update_fields=['structured_html', 'structured_html_generated_at'])
-            
-            print(f"✅ {updated_count} élément(s) sauvegardé(s) pour le document {doc_id}")
+            doc.save(update_fields=['structured_html'])
 
-        # RETOUR OBLIGATOIRE avec le HTML mis à jour
         return JsonResponse({
             'success': True,
             'structured_html': doc.structured_html,
-            'updated_count': updated_count,
-            'message': f'{updated_count} élément(s) mis à jour avec succès.'
+            'modifications_applied': updated_count
         })
 
-    except json.JSONDecodeError:
-        return JsonResponse({'success': False, 'error': 'JSON invalide'}, status=400)
     except Exception as e:
-        print(f"❌ Erreur api_save_structured_edits: {e}")
         import traceback
         traceback.print_exc()
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
