@@ -24,12 +24,14 @@ interface SplitViewProps {
 export const SplitView = ({ doc }: SplitViewProps) => {
   const [structuredHtml, setStructuredHtml] = useState<string>(doc.structured_html || '');
   const [structuredHtmlCss, setStructuredHtmlCss] = useState<string>(doc.structured_html_css || '');
+  const [originalHtml, setOriginalHtml] = useState<string>(doc.structured_html || '');
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [editedContent, setEditedContent] = useState<Record<string, string>>({});
   const [pdfError, setPdfError] = useState(false);
+  const [saveKey, setSaveKey] = useState(0);
   const contentRef = useRef<HTMLDivElement>(null);
+  const modificationsRef = useRef<Map<string, string>>(new Map());
 
   const pdfUrl = documentService.getOriginalPdfUrl(doc.id);
 
@@ -37,39 +39,85 @@ export const SplitView = ({ doc }: SplitViewProps) => {
   useEffect(() => {
     if (!doc.structured_html) {
       loadStructuredHtml();
+    } else {
+      setOriginalHtml(doc.structured_html);
     }
   }, [doc.id]);
 
-  // ✅ CORRECTION MAJEURE: Gestion des modifications avec tracking précis
+  // Synchroniser avec les changements du document
+  useEffect(() => {
+    setStructuredHtml(doc.structured_html || '');
+    setOriginalHtml(doc.structured_html || '');
+    modificationsRef.current.clear();
+    setIsEditing(false);
+    setSaveKey(prev => prev + 1);
+  }, [doc.id, doc.structured_html]);
+
+  // Fonction pour obtenir le texte original d'un élément
+  const getOriginalText = (elementId: string): string => {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(originalHtml, 'text/html');
+    const element = doc.querySelector(`[data-element-id="${elementId}"]`);
+    return element?.textContent?.trim() || '';
+  };
+
+  // Fonction pour injecter les IDs sur les éléments éditables
+  const injectIds = (html: string): string => {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const editableElements = doc.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, td, th, div');
+    
+    editableElements.forEach((element, index) => {
+      if (!element.getAttribute('data-element-id')) {
+        element.setAttribute('data-element-id', `editable-${index}`);
+      }
+    });
+    
+    return doc.body.innerHTML;
+  };
+
+  // ✅ MutationObserver pour tracker les modifications (VERSION FONCTIONNELLE)
   useEffect(() => {
     const container = contentRef.current;
     if (!container || !isEditing) return;
 
-    const handleInput = (e: Event) => {
-      const target = e.target as HTMLElement;
-      const elementId = target.getAttribute('id');
-      if (elementId && target.isContentEditable) {
-        const newText = target.innerText.trim();
-        console.log(`✏️ Modification: ${elementId} = "${newText.substring(0, 50)}..."`);
-
-        // ✅ Utiliser une fonction de mise à jour pour éviter les stale closures
-        setEditedContent(prev => {
-          if (prev[elementId] === newText) return prev; // Éviter les re-renders inutiles
-          return {
-            ...prev,
-            [elementId]: newText,
-          };
-        });
+    // 1. Injection des IDs sur les éléments éditables
+    const editableElements = container.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, td, th, div');
+    editableElements.forEach((element, index) => {
+      if (!element.getAttribute('data-element-id')) {
+        const newId = `editable-${index}`;
+        element.setAttribute('data-element-id', newId);
       }
-    };
+    });
 
-    // ✅ Utiliser 'input' uniquement pour de meilleures performances
-    container.addEventListener('input', handleInput, true);
+    // 2. Observer pour détecter les modifications
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'characterData' || mutation.type === 'childList') {
+          let target: Node | null = mutation.target;
+          while (target && target !== container) {
+            if (target instanceof HTMLElement) {
+              const elementId = target.getAttribute('data-element-id');
+              if (elementId) {
+                const newText = target.innerText?.trim() || '';
+                const originalText = getOriginalText(elementId);
+                if (newText !== originalText) {
+                  // Stockage de la modification
+                  modificationsRef.current.set(elementId, newText);
+                  console.log(`✏️ Modification détectée: ${elementId} = "${newText.substring(0, 50)}..."`);
+                }
+                break;
+              }
+            }
+            target = target.parentElement;
+          }
+        }
+      });
+    });
 
-    return () => {
-      container.removeEventListener('input', handleInput, true);
-    };
-  }, [isEditing]);
+    observer.observe(container, { characterData: true, childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [isEditing, originalHtml]);
 
   // Charger le HTML structuré depuis le serveur
   const loadStructuredHtml = async (regen: boolean = false) => {
@@ -78,9 +126,14 @@ export const SplitView = ({ doc }: SplitViewProps) => {
       const html = await documentService.getStructuredHtml(doc.id, regen);
       console.log(`📄 HTML chargé (regen=${regen}): ${html.length} chars`);
 
-      // ✅ IMPORTANT: Mettre à jour l'état AVANT de sortir du mode édition
-      setStructuredHtml(html);
-      setEditedContent({});
+      // Injecter les IDs avant de sauvegarder
+      const htmlWithIds = injectIds(html);
+      
+      setStructuredHtml(htmlWithIds);
+      setOriginalHtml(htmlWithIds);
+      modificationsRef.current.clear();
+      setIsEditing(false);
+      setSaveKey(prev => prev + 1);
 
       toast.success(regen ? 'Contenu régénéré depuis le PDF original.' : 'Contenu rechargé avec succès.');
     } catch (error: any) {
@@ -97,32 +150,44 @@ export const SplitView = ({ doc }: SplitViewProps) => {
       handleSave();
     } else {
       setIsEditing(true);
+      modificationsRef.current.clear();
       toast.info('Mode édition activé. Modifiez le texte directement.');
     }
   };
 
-  // Sauvegarder avec gestion optimiste de l'UI
-
   const handleSave = async () => {
+    if (!isEditing || modificationsRef.current.size === 0) {
+      setIsEditing(false);
+      toast.info('Aucune modification à sauvegarder.');
+      return;
+    }
+
     setIsSaving(true);
+    setIsEditing(false);
+
     try {
-      const edits = Object.entries(editedContent).map(([element_id, new_text]) => ({
+      // Conversion de la Map en Array
+      const edits = Array.from(modificationsRef.current.entries()).map(([element_id, new_text]) => ({
         element_id,
         new_text,
       }));
 
-      // 1. Sauvegarde + réception du HTML modifié
-      const { structured_html } = await documentService.saveStructuredEdits(doc.id, edits);
+      console.log(`💾 Sauvegarde de ${edits.length} modification(s):`, edits);
 
-      // 2. Mise à jour IMMÉDIATE
-      setStructuredHtml(structured_html);
-      setEditedContent({});
-      setIsEditing(false);
+      // Appel API
+      const response = await documentService.saveStructuredEdits(doc.id, edits);
 
-      toast.success('Modifications sauvegardées !');
+      // Mise à jour de l'état
+      setStructuredHtml(response.structured_html);
+      setOriginalHtml(response.structured_html);
+      modificationsRef.current.clear();
+      setSaveKey(prev => prev + 1);
+
+      toast.success(`Sauvegardé ! ${response.modifications_applied} modification(s) appliquée(s).`);
     } catch (err: any) {
-      console.error('Sauvegarde échouée:', err);
+      console.error('❌ Erreur sauvegarde:', err);
       toast.error(err.response?.data?.error || 'Échec de la sauvegarde');
+      setIsEditing(true);
     } finally {
       setIsSaving(false);
     }
@@ -264,7 +329,7 @@ export const SplitView = ({ doc }: SplitViewProps) => {
                   contentEditable={isEditing}
                   suppressContentEditableWarning={true}
                   onBlur={() => {
-                    // ✅ Empêcher le blur de causer des re-renders pendant la sauvegarde
+                    // Empêcher le blur de causer des re-renders pendant la sauvegarde
                     if (!isSaving) {
                       console.log('📋 Contenu finalisé');
                     }
@@ -273,10 +338,10 @@ export const SplitView = ({ doc }: SplitViewProps) => {
               )}
 
               {/* ✅ Indicateur visuel des modifications non sauvegardées */}
-              {isEditing && Object.keys(editedContent).length > 0 && (
+              {isEditing && modificationsRef.current.size > 0 && (
                 <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
                   <p className="text-sm text-amber-800">
-                    ⚠️ {Object.keys(editedContent).length} modification(s) non sauvegardée(s)
+                    ⚠️ {modificationsRef.current.size} modification(s) non sauvegardée(s)
                   </p>
                 </div>
               )}

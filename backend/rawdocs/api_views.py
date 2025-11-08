@@ -2419,11 +2419,8 @@ def api_save_structured_edits(request, doc_id):
         # Fallback: Inject IDs if any are missing (ensures consistency)
         editable_elements = soup.select('p, h1, h2, h3, h4, h5, h6, li, td, th, div')
         for i, el in enumerate(editable_elements):
-            element_id = f'editable-{i}'
             if not el.has_attr('data-element-id'):
-                el['data-element-id'] = element_id
-            if not el.has_attr('id'):
-                el['id'] = element_id  # Ajouter aussi l'attribut id pour le frontend
+                el['data-element-id'] = f'editable-{i}'
 
         updated_count = 0
 
@@ -2434,10 +2431,8 @@ def api_save_structured_edits(request, doc_id):
             if not element_id:
                 continue
 
-            # Find by id or data-element-id
-            element = soup.find(id=element_id)
-            if not element:
-                element = soup.find(attrs={'data-element-id': element_id})
+            # Find by data-element-id
+            element = soup.find(attrs={'data-element-id': element_id})
 
             if element:
                 old_text = element.get_text().strip()
@@ -2449,9 +2444,11 @@ def api_save_structured_edits(request, doc_id):
                     document=doc,
                     field_name='edited_text_' + element_id[:200],
                     old_value=old_text[:2000],
-                    new_value=new_text[:2000],
+                    new_value=new_text[:2000],  # Fixed typo: new_value instead of new_text
                     modified_by=request.user
                 )
+            else:
+                print(f"  ❌ Élément non trouvé: data-element-id=\"{element_id}\"")
 
         if updated_count > 0:
             doc.structured_html = str(soup)

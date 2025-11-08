@@ -196,16 +196,21 @@ export const documentService = {
   },
 
   // Sauvegarder éditions structurées
-
   async saveStructuredEdits(
     docId: string,
     edits: Array<{ element_id: string; new_text: string }>
-  ): Promise<{ structured_html: string }> {
-    const response = await api.post<{ structured_html: string }>(
-      `/save-structured-edits/${docId}/`,
-      { edits }
-    );
-    return response.data; // ← Renvoie le HTML mis à jour
+  ): Promise<{
+    success: boolean;
+    structured_html: string;
+    modifications_applied?: number;
+  }> {
+    const response = await api.post<{
+      success: boolean;
+      structured_html: string;
+      modifications_applied?: number;
+    }>(`/save-structured-edits/${docId}/`, { edits });
+
+    return response.data;
   },
 
   // URL du PDF original
