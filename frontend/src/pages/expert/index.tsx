@@ -14,9 +14,7 @@ export default function ExpertDashboard() {
       description: 'En attente de validation',
       icon: FileText,
       color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
-      trend: '+3 cette semaine',
-      trendUp: true,
+      bgColor: 'bg-blue-50'
     },
     {
       title: 'Annotations Validées',
@@ -24,9 +22,7 @@ export default function ExpertDashboard() {
       description: 'Total validé',
       icon: CheckCircle,
       color: 'text-green-600',
-      bgColor: 'bg-green-50',
-      trend: '+18%',
-      trendUp: true,
+      bgColor: 'bg-green-50'
     },
     {
       title: 'En Cours',
@@ -34,9 +30,7 @@ export default function ExpertDashboard() {
       description: 'Documents en révision',
       icon: Clock,
       color: 'text-amber-600',
-      bgColor: 'bg-amber-50',
-      trend: 'Active',
-      trendUp: true,
+      bgColor: 'bg-amber-50'
     },
     {
       title: 'Taux de Précision',
@@ -44,9 +38,7 @@ export default function ExpertDashboard() {
       description: 'Qualité moyenne',
       icon: Award,
       color: 'text-purple-600',
-      bgColor: 'bg-purple-50',
-      trend: '+2.3%',
-      trendUp: true,
+      bgColor: 'bg-purple-50'
     },
   ];
 
@@ -103,15 +95,7 @@ export default function ExpertDashboard() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="flex items-end justify-between">
-                  <div className="text-4xl font-bold">{stat.value}</div>
-                  <div className={`flex items-center gap-1 text-sm font-medium ${
-                    stat.trendUp ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    <TrendingUp className="w-4 h-4" />
-                    {stat.trend}
-                  </div>
-                </div>
+                <div className="text-4xl font-bold">{stat.value}</div>
               </CardContent>
             </Card>
           ))}

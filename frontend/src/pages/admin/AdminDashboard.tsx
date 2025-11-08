@@ -4,20 +4,16 @@ import { Users, FileText, Tag, TrendingUp, Activity, Shield, BarChart3, ArrowUpR
 import { useData } from '@/contexts/DataContext';
 import { useRouter } from 'next/router';
 
-const AdminDashboard = () => {
-  const { documents } = useData();
   const router = useRouter();
 
   const stats = [
     {
-      title: 'Total Users',
-      value: '12',
-      description: 'Active platform users',
+      title: 'Users',
+      value: users.length.toString(),
+      description: 'Active users',
       icon: Users,
       color: 'text-purple-600',
-      bgColor: 'bg-purple-50',
-      trend: '+2 this week',
-      trendUp: true,
+      bgColor: 'bg-purple-50'
     },
     {
       title: 'Documents',
@@ -25,9 +21,7 @@ const AdminDashboard = () => {
       description: 'Uploaded documents',
       icon: FileText,
       color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
-      trend: '+15%',
-      trendUp: true,
+      bgColor: 'bg-blue-50'
     },
     {
       title: 'Annotations',
@@ -35,9 +29,7 @@ const AdminDashboard = () => {
       description: 'Total annotations made',
       icon: Tag,
       color: 'text-amber-600',
-      bgColor: 'bg-amber-50',
-      trend: '+23%',
-      trendUp: true,
+      bgColor: 'bg-amber-50'
     },
     {
       title: 'AI Requests',
@@ -45,15 +37,12 @@ const AdminDashboard = () => {
       description: 'Model API calls this month',
       icon: TrendingUp,
       color: 'text-green-600',
-      bgColor: 'bg-green-50',
-      trend: '+8%',
-      trendUp: true,
+      bgColor: 'bg-green-50'
     },
   ];
 
   const quickActions = [
     {
-      title: 'User Management',
       description: 'Manage users and permissions',
       icon: Users,
       color: 'from-purple-500 to-purple-600',
@@ -118,15 +107,7 @@ const AdminDashboard = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="flex items-end justify-between">
-                  <div className="text-4xl font-bold">{stat.value}</div>
-                  <div className={`flex items-center gap-1 text-sm font-medium ${
-                    stat.trendUp ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    <ArrowUpRight className="w-4 h-4" />
-                    {stat.trend}
-                  </div>
-                </div>
+                <div className="text-4xl font-bold">{stat.value}</div>
               </CardContent>
             </Card>
           ))}

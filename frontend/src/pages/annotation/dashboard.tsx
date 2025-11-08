@@ -225,13 +225,7 @@ const AnnotationDashboard = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="flex items-end justify-between">
-                  <div className="text-4xl font-bold">{stats.total_documents}</div>
-                  <div className="flex items-center gap-1 text-green-600 text-sm font-medium">
-                    <TrendingUp className="w-4 h-4" />
-                    +12%
-                  </div>
-                </div>
+                <div className="text-4xl font-bold">{stats.total_documents}</div>
               </CardContent>
             </Card>
 
@@ -294,13 +288,7 @@ const AnnotationDashboard = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="flex items-end justify-between">
-                  <div className="text-4xl font-bold">{stats.completed_count}</div>
-                  <div className="flex items-center gap-1 text-green-600 text-sm font-medium">
-                    <TrendingUp className="w-4 h-4" />
-                    +18%
-                  </div>
-                </div>
+                <div className="text-4xl font-bold">{stats.completed_count}</div>
               </CardContent>
             </Card>
           </div>

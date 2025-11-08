@@ -102,8 +102,7 @@ const DocumentManagerDashboard = () => {
       icon: FileText,
       color: 'text-blue-600',
       bgColor: 'bg-blue-50',
-      description: 'Documents uploaded',
-      trend: '+12%'
+      description: 'Documents uploaded'
     },
     {
       title: 'In Progress',
@@ -111,8 +110,7 @@ const DocumentManagerDashboard = () => {
       icon: Clock,
       color: 'text-amber-600',
       bgColor: 'bg-amber-50',
-      description: 'Awaiting validation',
-      trend: '+5%'
+      description: 'Awaiting validation'
     },
     {
       title: 'Validated',
@@ -120,8 +118,7 @@ const DocumentManagerDashboard = () => {
       icon: CheckCircle,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
-      description: 'Ready for annotation',
-      trend: '+8%'
+      description: 'Ready for annotation'
     },
   ];
 
@@ -185,13 +182,7 @@ const DocumentManagerDashboard = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="flex items-end justify-between">
-                  <div className="text-4xl font-bold">{stat.value}</div>
-                  <div className="flex items-center gap-1 text-green-600 text-sm font-medium">
-                    <TrendingUp className="w-4 h-4" />
-                    {stat.trend}
-                  </div>
-                </div>
+                <div className="text-4xl font-bold">{stat.value}</div>
               </CardContent>
             </Card>
           ))}
