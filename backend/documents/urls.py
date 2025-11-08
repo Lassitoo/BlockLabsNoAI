@@ -6,8 +6,8 @@ app_name = 'documents'
 urlpatterns = [
     # Pages principales
     path('', views.home, name='home'),
-    path('list/', views.document_list, name='list'),
-    path('upload/', views.document_upload, name='upload'),
+    # path('list/', views.document_list, name='list'),  # DÉSACTIVÉ - utiliser API
+    # path('upload/', views.document_upload, name='upload'),  # DÉSACTIVÉ - utiliser API
     path('<int:pk>/', views.document_detail, name='detail'),
 
     # API endpoints

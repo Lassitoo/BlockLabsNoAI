@@ -11,109 +11,22 @@ import threading
 import json
 
 from .models import Document, DocumentImage, DocumentFormat
-from .forms import DocumentUploadForm, DocumentFilterForm
+# from .forms import DocumentUploadForm, DocumentFilterForm  # Supprimé - utiliser API
 from .utils.document_processor import DocumentProcessor
 
 
-def document_list(request):
-    """Liste des documents avec filtres et pagination"""
-    filter_form = DocumentFilterForm(request.GET)
-    documents = Document.objects.all()
+# ============================================================================
+# FONCTIONS DÉSACTIVÉES - Utilisaient les formulaires Django (supprimés)
+# Utiliser les API à la place (rawdocs/api_views.py)
+# ============================================================================
 
-    # Si l'utilisateur n'est pas connecté, créer un utilisateur temporaire
-    if not request.user.is_authenticated:
-        from django.contrib.auth.models import User
-        temp_user, created = User.objects.get_or_create(
-            username='anonymous',
-            defaults={'email': 'anonymous@example.com'}
-        )
-        # Filtrer par utilisateur temporaire ou permettre l'accès
-        documents = documents.filter(uploaded_by=temp_user)
-    else:
-        documents = documents.filter(uploaded_by=request.user)
+# def document_list(request):
+#     """Liste des documents avec filtres et pagination - DÉSACTIVÉ"""
+#     pass
 
-    # Appliquer les filtres
-    if filter_form.is_valid():
-        search = filter_form.cleaned_data.get('search')
-        status = filter_form.cleaned_data.get('status')
-        file_type = filter_form.cleaned_data.get('file_type')
-        sort_by = filter_form.cleaned_data.get('sort_by')
-        date_from = filter_form.cleaned_data.get('date_from')
-        date_to = filter_form.cleaned_data.get('date_to')
-
-        if search:
-            documents = documents.filter(
-                Q(title__icontains=search) |
-                Q(description__icontains=search) |
-                Q(extracted_content__icontains=search)
-            )
-
-        if status:
-            documents = documents.filter(status=status)
-
-        if file_type:
-            documents = documents.filter(file_type=file_type)
-
-        if date_from:
-            documents = documents.filter(uploaded_at__date__gte=date_from)
-
-        if date_to:
-            documents = documents.filter(uploaded_at__date__lte=date_to)
-
-        if sort_by:
-            documents = documents.order_by(sort_by)
-
-    # Pagination
-    paginator = Paginator(documents, 12)
-    page_number = request.GET.get('page')
-    page_documents = paginator.get_page(page_number)
-
-    context = {
-        'documents': page_documents,
-        'filter_form': filter_form,
-        'total_documents': documents.count(),
-    }
-
-    return render(request, 'documents/document_list.html', context)
-
-
-def document_upload(request):
-    """Upload d'un nouveau document"""
-    if request.method == 'POST':
-        # Gérer l'utilisateur non connecté
-        user = request.user if request.user.is_authenticated else None
-        if not user:
-            from django.contrib.auth.models import User
-            user, created = User.objects.get_or_create(
-                username='anonymous',
-                defaults={'email': 'anonymous@example.com'}
-            )
-
-        form = DocumentUploadForm(request.POST, request.FILES, user=user)
-
-        if form.is_valid():
-            document = form.save()
-
-            # Lancer le traitement en arrière-plan
-            thread = threading.Thread(
-                target=process_document_background,
-                args=(document.id,)
-            )
-            thread.daemon = True
-            thread.start()
-
-            messages.success(
-                request,
-                f'Document "{document.title}" téléchargé avec succès. Le traitement est en cours...'
-            )
-
-            return redirect('documents:detail', pk=document.id)
-        else:
-            messages.error(request, 'Erreur lors du téléchargement. Veuillez corriger les erreurs ci-dessous.')
-    else:
-        form = DocumentUploadForm()
-
-    return render(request, 'documents/upload.html', {'form': form})
+# def document_upload(request):
+#     """Upload d'un nouveau document - DÉSACTIVÉ"""
+#     pass
 
 
 def document_detail(request, pk):
