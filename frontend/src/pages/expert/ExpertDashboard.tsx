@@ -1,6 +1,6 @@
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, CheckCircle, Clock, XCircle, TrendingUp, Activity, Target, Award } from 'lucide-react';
+import { FileText, Activity } from 'lucide-react';
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import axios from '@/lib/axios';
@@ -22,14 +22,8 @@ const ExpertDashboard = () => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
-    pending_review: 0,
-    validated_annotations: 0,
-    rejected_annotations: 0,
     total_annotations: 0,
-    total_documents: 0,
-    total_pages: 0,
-    validation_rate: 0,
-    avg_annotations_per_doc: 0
+    total_documents: 0
   });
 
   useEffect(() => {
@@ -53,30 +47,16 @@ const ExpertDashboard = () => {
         // Use API stats if available, otherwise calculate from documents
         if (statsResponse.data.success) {
           setStats({
-            pending_review: statsResponse.data.total_pending_annotations || 0,
-            validated_annotations: statsResponse.data.validated_annotations || 0,
-            rejected_annotations: statsResponse.data.rejected_annotations || 0,
             total_annotations: statsResponse.data.total_annotations || 0,
-            total_documents: statsResponse.data.total_documents || docs.length,
-            total_pages: statsResponse.data.total_pages || 0,
-            validation_rate: statsResponse.data.validation_rate || 0,
-            avg_annotations_per_doc: statsResponse.data.avg_annotations_per_doc || 0
+            total_documents: statsResponse.data.total_documents || docs.length
           });
         } else {
           // Fallback: calculate from documents
-          const totalPages = docs.reduce((sum: number, doc: Document) => sum + doc.total_pages, 0);
           const totalAnnotations = docs.reduce((sum: number, doc: Document) => sum + doc.annotation_count, 0);
-          const pendingAnnotations = docs.reduce((sum: number, doc: Document) => sum + doc.pending_annotations, 0);
           
           setStats({
-            pending_review: pendingAnnotations,
-            validated_annotations: totalAnnotations - pendingAnnotations,
-            rejected_annotations: 0,
             total_annotations: totalAnnotations,
-            total_documents: docs.length,
-            total_pages: totalPages,
-            validation_rate: totalAnnotations > 0 ? Math.round(((totalAnnotations - pendingAnnotations) / totalAnnotations) * 100) : 0,
-            avg_annotations_per_doc: docs.length > 0 ? Math.round(totalAnnotations / docs.length) : 0
+            total_documents: docs.length
           });
         }
       }
@@ -106,75 +86,8 @@ const ExpertDashboard = () => {
           </div>
         ) : (
           <>
-            {/* KPIs Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {/* Annotations en Attente */}
-              <Card className="border-l-4 border-l-orange-500">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    En Attente
-                  </CardTitle>
-                  <Clock className="w-5 h-5 text-orange-500" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-orange-600">{stats.pending_review}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Annotations à réviser
-                  </p>
-                </CardContent>
-              </Card>
-
-              {/* Annotations Validées */}
-              <Card className="border-l-4 border-l-green-500">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Validées
-                  </CardTitle>
-                  <CheckCircle className="w-5 h-5 text-green-500" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-green-600">{stats.validated_annotations}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Annotations approuvées
-                  </p>
-                </CardContent>
-              </Card>
-
-              {/* Annotations Rejetées */}
-              <Card className="border-l-4 border-l-red-500">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Rejetées
-                  </CardTitle>
-                  <XCircle className="w-5 h-5 text-red-500" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-red-600">{stats.rejected_annotations}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Annotations refusées
-                  </p>
-                </CardContent>
-              </Card>
-
-              {/* Taux de Validation */}
-              <Card className="border-l-4 border-l-blue-500">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Taux de Validation
-                  </CardTitle>
-                  <TrendingUp className="w-5 h-5 text-blue-500" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-blue-600">{stats.validation_rate}%</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Annotations traitées
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Secondary Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Stats principales */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -201,21 +114,6 @@ const ExpertDashboard = () => {
                   <div className="text-2xl font-bold">{stats.total_annotations}</div>
                   <p className="text-xs text-muted-foreground mt-1">
                     Dans tous les documents
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Moyenne par Doc
-                  </CardTitle>
-                  <Target className="w-5 h-5 text-teal-500" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stats.avg_annotations_per_doc}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Annotations/document
                   </p>
                 </CardContent>
               </Card>

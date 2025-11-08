@@ -310,16 +310,9 @@ export default function ReviewAnnotations() {
                 className="px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg hover:from-purple-600 hover:to-purple-700 transition-all flex items-center gap-2"
               >
                 <Brain className="w-4 h-4" />
-                JSON Sémantique
+                JSON
               </button>
             </div>
-
-            <button
-              onClick={toggleAllPages}
-              className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
-            >
-              Tout Déplier/Replier
-            </button>
           </div>
         </Card>
 
@@ -426,13 +419,13 @@ export default function ReviewAnnotations() {
                   onClick={() => router.push(`/annotation/document/${id}/annotate`)}
                   className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all"
                 >
-                  Annoter le document
+                  Annoter Document
                 </button>
                 <button
                   onClick={() => router.push(`/expert/documents/${id}/json`)}
                   className="px-6 py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg hover:from-purple-600 hover:to-purple-700 transition-all"
                 >
-                  Voir le JSON sémantique
+                  JSON
                 </button>
               </div>
             </CardContent>
