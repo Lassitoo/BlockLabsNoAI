@@ -4,12 +4,14 @@ import { Users, FileText, Tag, TrendingUp, Activity, Shield, BarChart3, ArrowUpR
 import { useData } from '@/contexts/DataContext';
 import { useRouter } from 'next/router';
 
+const AdminDashboard = () => {
   const router = useRouter();
+  const { documents } = useData();
 
   const stats = [
     {
       title: 'Users',
-      value: users.length.toString(),
+      value: '0',
       description: 'Active users',
       icon: Users,
       color: 'text-purple-600',
@@ -43,6 +45,7 @@ import { useRouter } from 'next/router';
 
   const quickActions = [
     {
+      title: 'User Management',
       description: 'Manage users and permissions',
       icon: Users,
       color: 'from-purple-500 to-purple-600',
