@@ -179,17 +179,26 @@ def reprocess_document(request, pk):
     return JsonResponse({'success': True, 'message': 'Retraitement lancé'})
 
 
+@csrf_exempt  # Temporairement désactivé pour les tests ngrok
 @require_http_methods(["DELETE"])
 def delete_document(request, pk):
     """Supprime un document"""
+    print(f"🗑️ Delete document endpoint called for doc_id: {pk}")
+    print(f"👤 User authenticated: {request.user.is_authenticated}")
+    print(f"👤 User: {request.user}")
+    print(f"🍪 Cookies: {request.COOKIES}")
+    
     document = get_object_or_404(Document, pk=pk)
+    print(f"📄 Document owner: {document.uploaded_by}")
 
     # Vérifier les permissions
     if request.user.is_authenticated and document.uploaded_by != request.user:
+        print(f"❌ Permission denied: user {request.user} != owner {document.uploaded_by}")
         return JsonResponse({'error': 'Permission refusée'}, status=403)
 
     title = document.title
     document.delete()
+    print(f"✅ Document '{title}' deleted successfully")
 
     return JsonResponse({
         'success': True,

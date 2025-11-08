@@ -24,9 +24,15 @@ from django.contrib.auth.models import Group
 @require_http_methods(["GET"])
 def get_csrf_token(request):
     """Get CSRF token for Next.js frontend"""
-    return JsonResponse({'detail': 'CSRF cookie set'})
+    print("🔐 CSRF token endpoint called")
+    print(f"📍 Origin: {request.META.get('HTTP_ORIGIN', 'No origin')}")
+    print(f"🍪 Cookies in request: {request.COOKIES}")
+    response = JsonResponse({'detail': 'CSRF cookie set'})
+    print(f"📤 Response cookies: {response.cookies}")
+    return response
 
 
+@csrf_exempt  # Temporairement désactivé pour les tests ngrok
 @require_http_methods(["POST"])
 def api_register(request):
     """Handle user registration from Next.js"""
@@ -79,9 +85,14 @@ def api_register(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+@csrf_exempt  # Temporairement désactivé pour les tests ngrok
 @require_http_methods(["POST"])
 def api_login(request):
     """Handle login requests from Next.js"""
+    print("🔑 Login endpoint called")
+    print(f"📍 Origin: {request.META.get('HTTP_ORIGIN', 'No origin')}")
+    print(f"🍪 Cookies in request: {request.COOKIES}")
+    print(f"🔐 CSRF token in header: {request.META.get('HTTP_X_CSRFTOKEN', 'No token')}")
     try:
         data = json.loads(request.body)
         username = data.get('username')
@@ -125,6 +136,7 @@ def api_login(request):
         }, status=500)
 
 
+@csrf_exempt  # Temporairement désactivé pour les tests ngrok
 @require_http_methods(["POST"])
 @login_required
 def api_logout(request):

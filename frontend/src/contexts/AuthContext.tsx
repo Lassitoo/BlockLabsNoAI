@@ -32,8 +32,16 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
 
+  // Helper function to get cookie value - MUST be defined before interceptor
+  function getCookie(name: string) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(';').shift();
+    return null;
+  }
+
   const axiosInstance = axios.create({
-  baseURL: "http://localhost:8000/api",
+  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api",
   withCredentials: true,
   headers: { 
     "X-Requested-With": "XMLHttpRequest"
@@ -43,26 +51,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Add an interceptor to include CSRF token from cookie in all requests
   axiosInstance.interceptors.request.use((config) => {
     const csrfToken = getCookie('csrftoken');
+    console.log("🔐 Interceptor - CSRF token from cookie:", csrfToken);
     if (csrfToken) {
       config.headers = config.headers || {};
       config.headers['X-CSRFToken'] = csrfToken;
+      console.log("✅ Interceptor - Added X-CSRFToken header");
+    } else {
+      console.warn("⚠️ Interceptor - No CSRF token found in cookies");
     }
     return config;
   });
 
-  // Helper function to get cookie value
-  function getCookie(name: string) {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop()?.split(';').shift();
-    return null;
-  }
-
   const getCsrfToken = async () => {
     try {
       console.log("🔐 Attempting to get CSRF token...");
+      console.log("🌐 Base URL:", axiosInstance.defaults.baseURL);
       const response = await axiosInstance.get("/auth/csrf/");
       console.log("✅ CSRF token response:", response.data);
+      console.log("🍪 Cookies after CSRF call:", document.cookie);
+      const csrfToken = getCookie('csrftoken');
+      console.log("🔑 CSRF token from cookie:", csrfToken);
       // The cookie is now set, no need to return anything
     } catch (error) {
       console.error("❌ Failed to get CSRF token:", error);
@@ -78,7 +86,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     role: string
   ) => {
     try {
-      await getCsrfToken();
+      // CSRF désactivé temporairement pour les tests ngrok
+      // await getCsrfToken();
       const response = await axiosInstance.post<{ id: string; username: string; email: string }>(
         "/auth/register/",
         { username, email, password, role }
@@ -97,7 +106,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (identifier: string, password: string) => {
   try {
-    await getCsrfToken();
+    // CSRF désactivé temporairement pour les tests ngrok
+    // await getCsrfToken();
     const response = await axiosInstance.post<{
       success: boolean;
       user: {

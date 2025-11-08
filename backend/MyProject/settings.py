@@ -79,6 +79,14 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3001",
     "http://127.0.0.1:3001",
 ]
+
+# Allow all ngrok origins in development
+if DEBUG:
+    CORS_ALLOWED_ORIGIN_REGEXES = [
+        r"^https://.*\.ngrok-free\.app$",
+        r"^https://.*\.ngrok\.io$",
+    ]
+
 CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOW_HEADERS = [
@@ -213,13 +221,7 @@ BOX_CLIENT_SECRET = 'votre_box_client_secret'
 
 
 
-# Sécurité
-if not DEBUG:
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-else:
-    SESSION_COOKIE_SECURE = False
-    CSRF_COOKIE_SECURE = False
+# Sécurité - sera redéfini plus bas pour les cookies CSRF/Session
 
 # Autoriser l'affichage des fichiers dans les iframes du même domaine
 X_FRAME_OPTIONS = 'ALLOWALL'
@@ -227,35 +229,16 @@ X_FRAME_OPTIONS = 'ALLOWALL'
 CONVERTIO_API_KEY = "c14c6e0d62a6a7a98acb9bc629bbd273"
 
 # CSRF Settings for Next.js
-CSRF_COOKIE_SAMESITE = 'Lax'
-SESSION_COOKIE_SAMESITE = 'Lax'
+# Configuration pour ngrok (cross-origin)
+CSRF_COOKIE_SAMESITE = 'None'  # Nécessaire pour ngrok
+SESSION_COOKIE_SAMESITE = 'None'  # Nécessaire pour ngrok
+CSRF_COOKIE_SECURE = True  # Obligatoire avec SameSite=None (HTTPS)
+SESSION_COOKIE_SECURE = True  # Obligatoire avec SameSite=None (HTTPS)
+
 CSRF_COOKIE_HTTPONLY = False
 CSRF_USE_SESSIONS = False
 CSRF_COOKIE_NAME = 'csrftoken'
 SESSION_COOKIE_AGE = 86400
 SESSION_COOKIE_NAME = 'sessionid'
-
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-            'level': 'INFO',
-        },
-    },
-    'loggers': {
-        '': {
-            'handlers': ['console'],
-            'level': 'INFO',
-            'propagate': True,
-        },
-    },
-}
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3001",
-    "http://127.0.0.1:3001",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
-CORS_ALLOW_CREDENTIALS = True
+CSRF_COOKIE_DOMAIN = None  # Allow cookies to work across different domains
+CSRF_TRUSTED_ORIGINS = CSRF_TRUSTED_ORIGINS  # Use the list defined earlier

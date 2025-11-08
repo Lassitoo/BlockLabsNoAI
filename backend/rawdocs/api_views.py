@@ -2314,19 +2314,25 @@ def api_get_document(request, doc_id):
         }, status=500)
 
 
+@csrf_exempt  # Temporairement désactivé pour les tests ngrok
 @require_http_methods(["DELETE"])
 @login_required
 def api_delete_document(request, doc_id):
     """API endpoint to delete document"""
+    print(f"🗑️ API Delete document called for doc_id: {doc_id}")
+    print(f"👤 User: {request.user}")
+    
     document = get_object_or_404(RawDocument, id=doc_id, owner=request.user)
 
     try:
         document.delete()
+        print(f"✅ Document {doc_id} deleted successfully")
         return JsonResponse({
             'success': True,
             'message': 'Document supprimé avec succès'
         })
     except Exception as e:
+        print(f"❌ Error deleting document: {e}")
         return JsonResponse({
             'success': False,
             'error': str(e)

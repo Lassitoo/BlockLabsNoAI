@@ -10,8 +10,9 @@ urlpatterns = [
     path('admin/ai-performance/', ai_views.ai_performance_hub, name='ai_performance_hub'),
     path('admin/ai-performance/metadata/', ai_views.metadata_learning_dashboard, name='metadata_learning_dashboard'),
     path('admin/', admin.site.urls),
-    path('', include('rawdocs.urls')),
-    path('expert/', include('expert.urls')),
+    # COMMENTÉ POUR UTILISER UNIQUEMENT LES API
+    # path('', include('rawdocs.urls')),
+    # path('expert/', include('expert.urls')),
 
     path('documents/', include(('documents.urls', 'documents'), namespace='documents')),
     path('api/', include('rawdocs.api_urls')),
