@@ -58,12 +58,29 @@ export default function ReviewAnnotations() {
   const [document, setDocument] = useState<DocumentData | null>(null);
   const [loading, setLoading] = useState(true);
   const [collapsedPages, setCollapsedPages] = useState<Set<string>>(new Set());
+  const [relationships, setRelationships] = useState<any[]>([]);
+  const [showRelationships, setShowRelationships] = useState(false);
+  const [editingRelationship, setEditingRelationship] = useState<any>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [rejectedRelationships, setRejectedRelationships] = useState<Set<number>>(new Set());
+  const [editForm, setEditForm] = useState({
+    source_annotation_id: '',     
+    target_annotation_id: '', 
+    relationship_name: '',
+    description: ''
+  });
 
   useEffect(() => {
-    if (id) {
-      fetchDocument();
-    }
-  }, [id]);
+  if (id) {
+    fetchDocument();
+  }
+}, [id]);
+
+useEffect(() => {
+  if (document) {
+    fetchRelationships();
+  }
+}, [document]);
 
   const fetchDocument = async () => {
     try {
@@ -118,6 +135,36 @@ export default function ReviewAnnotations() {
     setCollapsedPages(newCollapsed);
   };
 
+  const fetchRelationships = async () => {
+  if (!document) return;
+  
+  try {
+    // Get all page IDs from the document
+    const pageIds = Object.values(document.pages_with_annotations).map((page: any) => page.page_id);
+    
+    // For simplicity, let's fetch relationships for the first page
+    // In production, you'd want to fetch for all pages or current page
+    const allRelationships: any[] = [];
+    
+    for (const pageNum of Object.keys(document.pages_with_annotations)) {
+      // You need to get the page_id from somewhere - let's add it to the API response
+      // For now, we'll use a workaround
+      try {
+        const response = await axios.get(`/annotation/relationships/page/${pageNum}/`);
+        if (response.data.success) {
+          allRelationships.push(...response.data.relationships);
+        }
+      } catch (error) {
+        console.error(`Error fetching relationships for page ${pageNum}:`, error);
+      }
+    }
+    
+    setRelationships(allRelationships);
+  } catch (error) {
+    console.error('Error fetching relationships:', error);
+  }
+};
+
   const toggleAllPages = () => {
     if (!document) return;
     const allPages = Object.keys(document.pages_with_annotations);
@@ -157,6 +204,85 @@ export default function ReviewAnnotations() {
     }
   };
 
+
+  const approveRelationship = async (relationshipId: number) => {
+  try {
+    await axios.post(`/expert/relationships/${relationshipId}/validate/`, { action: 'validate' });
+    setRelationships(prev => prev.filter(rel => rel.id !== relationshipId));
+    showNotification('Relation approuvée avec succès', 'success');
+  } catch (error) {
+    console.error('Erreur:', error);
+    showNotification('Erreur lors de l\'approbation', 'error');
+  }
+};
+
+
+const rejectRelationship = (relationshipId: number) => {
+  setRejectedRelationships(prev => new Set(prev).add(relationshipId));
+};
+
+const openEditModal = (relationship: any) => {
+  setEditingRelationship(relationship);
+  setEditForm({
+    source_annotation_id: relationship.source.id.toString(),
+    target_annotation_id: relationship.target.id.toString(),
+    relationship_name: relationship.relationship_name,
+    description: relationship.description || ''
+  });
+  setShowEditModal(true);
+};
+
+const deleteRelationship = async (relationshipId: number) => {
+  if (!confirm('Êtes-vous sûr de vouloir supprimer définitivement cette relation ?')) {
+    return;
+  }
+  
+  try {
+    await axios.delete(`/expert/relationships/${relationshipId}/delete/`);
+    setRejectedRelationships(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(relationshipId);
+      return newSet;
+    });
+    setRelationships(prev => prev.filter(rel => rel.id !== relationshipId));
+    showNotification('Relation supprimée avec succès', 'success');
+  } catch (error) {
+    console.error('Erreur:', error);
+    showNotification('Erreur lors de la suppression', 'error');
+  }
+};
+
+const saveEditedRelationship = async () => {
+  if (!editingRelationship) return;
+  
+  try {
+    const response = await axios.put(`/expert/relationships/${editingRelationship.id}/update/`, {
+      source_annotation_id: parseInt(editForm.source_annotation_id),
+      target_annotation_id: parseInt(editForm.target_annotation_id),
+      relationship_name: editForm.relationship_name,
+      description: editForm.description,
+      validate: true
+    });
+    
+    setShowEditModal(false);
+setEditingRelationship(null);
+
+setRejectedRelationships(prev => {
+  const newSet = new Set(prev);
+  newSet.delete(editingRelationship.id);
+  return newSet;
+});
+
+// Remove it from the displayed list
+setRelationships(prev => prev.filter(rel => rel.id !== editingRelationship.id));
+
+showNotification('Relation modifiée et approuvée', 'success');
+
+  } catch (error) {
+    console.error('Erreur:', error);
+    showNotification('Erreur lors de la modification', 'error');
+  }
+};
   const showNotification = (message: string, type: 'success' | 'error' | 'info') => {
     // TODO: Implémenter un système de notifications (toast)
     alert(message);
@@ -312,10 +438,182 @@ export default function ReviewAnnotations() {
                 <Brain className="w-4 h-4" />
                 JSON
               </button>
+              <button
+                onClick={() => setShowRelationships(!showRelationships)}
+                className={`px-4 py-2 ${showRelationships ? 'bg-gradient-to-r from-indigo-600 to-purple-700' : 'bg-gradient-to-r from-indigo-500 to-purple-600'} text-white rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all flex items-center gap-2`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+                Relations ({relationships.length})
+              </button>
             </div>
           </div>
         </Card>
+        
+        {/* Relationships Section */}
+          {showRelationships && (
+            <Card className="mb-6">
+              <div className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white p-6">
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                  Relations ({relationships.length})
+                </h2>
+                <p className="text-indigo-100 mt-1">Validez ou corrigez les relations entre annotations</p>
+              </div>
+              
+              <CardContent className="p-6">
+                {relationships.length === 0 ? (
+                  <div className="text-center py-12">
+                    <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                    </svg>
+                    <p className="text-gray-600">Aucune relation trouvée</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {relationships.map((rel) => (
+                      <div key={rel.id} className="border rounded-lg p-6 bg-gradient-to-r from-indigo-50 to-purple-50 hover:shadow-md transition-shadow">
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex-1">
+                            {/* Source */}
+                            <div className="mb-3">
+                              <div className="text-xs text-gray-600 mb-1 font-medium">SOURCE</div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: rel.source.color }}></div>
+                                <span className="px-2 py-0.5 rounded text-xs font-medium" style={{ backgroundColor: rel.source.color + '30', color: rel.source.color }}>
+                                  {rel.source.type}
+                                </span>
+                              </div>
+                              <p className="text-sm font-medium text-gray-800 pl-4">
+                                &quot;{rel.source.text.substring(0, 80)}{rel.source.text.length > 80 ? '...' : ''}&quot;
+                              </p>
+                            </div>
 
+                            {/* Relationship */}
+                            <div className="flex items-center justify-center my-3">
+                              <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-2">
+                                <span>→</span>
+                                <span>{rel.relationship_name.replace(/_/g, ' ').toUpperCase()}</span>
+                                <span>→</span>
+                              </div>
+                            </div>
+
+                            {/* Target */}
+                            <div className="mb-3">
+                              <div className="text-xs text-gray-600 mb-1 font-medium">CIBLE</div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: rel.target.color }}></div>
+                                <span className="px-2 py-0.5 rounded text-xs font-medium" style={{ backgroundColor: rel.target.color + '30', color: rel.target.color }}>
+                                  {rel.target.type}
+                                </span>
+                              </div>
+                              <p className="text-sm font-medium text-gray-800 pl-4">
+                                &quot;{rel.target.text.substring(0, 80)}{rel.target.text.length > 80 ? '...' : ''}&quot;
+                              </p>
+                            </div>
+
+                            {/* Description */}
+                            {rel.description && (
+                              <div className="mt-3 pt-3 border-t border-indigo-200">
+                                <div className="text-xs text-gray-600 mb-1 font-medium">DESCRIPTION</div>
+                                <p className="text-sm text-gray-700 italic pl-4 border-l-2 border-indigo-300">
+                                  {rel.description}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Meta */}
+                            <div className="flex items-center gap-3 text-xs text-gray-500 mt-3 pt-3 border-t border-gray-200">
+                              <span className="font-medium">Créé par:</span>
+                              <span>{rel.created_by}</span>
+                              <span>•</span>
+                              <span>{new Date(rel.created_at).toLocaleString('fr-FR')}</span>
+                              {rel.is_validated && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-green-600 font-medium flex items-center gap-1">
+                                    <CheckCircle className="w-3 h-3" />
+                                    Validé
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Actions */}
+                            <div className="flex flex-col gap-2 ml-4">
+
+                              {/* NOT VALIDATED */}
+                              {!rel.is_validated && (
+                                <>
+                                  {/* If NOT rejected → show Approve + Reject */}
+                                  {!rejectedRelationships.has(rel.id) && (
+                                    <>
+                                      <button
+                                        onClick={() => approveRelationship(rel.id)}
+                                        className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 transition-all flex items-center gap-2 whitespace-nowrap"
+                                      >
+                                        Approuver
+                                      </button>
+
+                                      <button
+                                        onClick={() => rejectRelationship(rel.id)}
+                                        className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all flex items-center gap-2 whitespace-nowrap"
+                                      >
+                                        Rejeter
+                                      </button>
+                                    </>
+                                  )}
+
+                                  {/* If rejected → show EDIT + DELETE (old beautiful design) */}
+                                  {rejectedRelationships.has(rel.id) && (
+                                    <>
+                                      <button
+                                        onClick={() => openEditModal(rel)}
+                                        className="px-4 py-2 bg-gradient-to-r from-yellow-500 to-yellow-600 text-white rounded-lg hover:from-yellow-600 hover:to-yellow-700 transition-all flex items-center gap-2 whitespace-nowrap"
+                                      >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </svg>
+                                        Éditer
+                                      </button>
+
+                                      <button
+                                        onClick={() => deleteRelationship(rel.id)}
+                                        className="px-4 py-2 bg-gradient-to-r from-gray-700 to-gray-800 text-white rounded-lg hover:from-gray-800 hover:to-gray-900 transition-all flex items-center gap-2 whitespace-nowrap"
+                                      >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                        Supprimer
+                                      </button>
+                                    </>
+                                  )}
+                                </>
+                              )}
+
+                              {/* VALIDATED */}
+                              {rel.is_validated && (
+                                <div className="px-4 py-2 bg-green-100 text-green-800 rounded-lg flex items-center gap-2 whitespace-nowrap">
+                                  <CheckCircle className="w-4 h-4" />
+                                  Approuvé
+                                </div>
+                              )}
+                            </div>
+
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         {/* Annotations par page */}
         {Object.keys(document.pages_with_annotations).length > 0 ? (
           <div className="space-y-4">
@@ -432,6 +730,108 @@ export default function ReviewAnnotations() {
           </Card>
         )}
       </div>
+      {/* Edit Relationship Modal */}
+        {showEditModal && editingRelationship && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <Card className="w-full max-w-2xl">
+              <div className="bg-gradient-to-r from-yellow-500 to-orange-600 text-white p-6">
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  Éditer la Relation
+                </h2>
+                <p className="text-yellow-100 mt-1">Corrigez la relation puis validez</p>
+              </div>
+
+              <CardContent className="p-6 space-y-4">
+                {/* Source Annotation Selector */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Annotation Source *</label>
+                  <select
+                    className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                    value={editForm.source_annotation_id}
+                    onChange={(e) => setEditForm({...editForm, source_annotation_id: e.target.value})}
+                  >
+                    <option value="">-- Sélectionner annotation source --</option>
+                    {document && Object.values(document.pages_with_annotations).flatMap((page: any) => 
+                      page.annotations.map((ann: any) => (
+                        <option key={ann.id} value={ann.id}>
+                          [{ann.annotation_type.display_name}] {ann.selected_text.substring(0, 60)}{ann.selected_text.length > 60 ? '...' : ''}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+
+                {/* Target Annotation Selector */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Annotation Cible *</label>
+                  <select
+                    className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                    value={editForm.target_annotation_id}
+                    onChange={(e) => setEditForm({...editForm, target_annotation_id: e.target.value})}
+                  >
+                    <option value="">-- Sélectionner annotation cible --</option>
+                    {document && Object.values(document.pages_with_annotations).flatMap((page: any) => 
+                      page.annotations.map((ann: any) => (
+                        <option key={ann.id} value={ann.id}>
+                          [{ann.annotation_type.display_name}] {ann.selected_text.substring(0, 60)}{ann.selected_text.length > 60 ? '...' : ''}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+
+                {/* Relationship Type */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Type de Relation *</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                    value={editForm.relationship_name}
+                    onChange={(e) => setEditForm({...editForm, relationship_name: e.target.value})}
+                    placeholder="Ex: approuvé_par, requis_pour..."
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Suggestions : approuvé_par, requis_pour, délivré_par, dépend_de, remplace
+                  </p>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Description</label>
+                  <textarea
+                    className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                    rows={3}
+                    value={editForm.description}
+                    onChange={(e) => setEditForm({...editForm, description: e.target.value})}
+                    placeholder="Description de la relation..."
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4 border-t">
+                  <button
+                    onClick={() => {
+                      setShowEditModal(false);
+                      setEditingRelationship(null);
+                    }}
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={saveEditedRelationship}
+                    className="flex-1 px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 transition-all flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    Sauvegarder et Approuver
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
     </DashboardLayout>
   );
 }

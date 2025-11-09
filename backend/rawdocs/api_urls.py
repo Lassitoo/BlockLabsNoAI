@@ -81,4 +81,9 @@ urlpatterns = [
          api_views.add_structured_annotation,
          name='api_add_structured_annotation'),
 
+     # Annotation Relationships
+     path('annotation/relationships/create/', api_views.create_annotation_relationship, name='create_annotation_relationship'),
+     path('annotation/relationships/page/<int:page_id>/', api_views.get_page_relationships, name='get_page_relationships'),
+     path('annotation/relationships/delete/<int:relationship_id>/', api_views.delete_annotation_relationship, name='delete_annotation_relationship'),
+
 ]

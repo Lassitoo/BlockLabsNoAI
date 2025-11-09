@@ -2,7 +2,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Eye, EyeOff, CheckCircle, FileText, Plus, Trash2, Copy } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, CheckCircle, FileText, Plus, Trash2, Copy, Link as LinkIcon } from 'lucide-react';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import axiosInstance from '@/lib/axios';
@@ -62,6 +62,25 @@ interface AnnotationType {
   color: string;
   description?: string;
 }
+interface AnnotationRelationship {
+  id: number;
+  source: {
+    id: number;
+    text: string;
+    type: string;
+    color: string;
+  };
+  target: {
+    id: number;
+    text: string;
+    type: string;
+    color: string;
+  };
+  relationship_name: string;
+  description: string;
+  created_by: string;
+  created_at: string;
+}
 
 const DocumentAnnotate = () => {
   const router = useRouter();
@@ -80,6 +99,16 @@ const DocumentAnnotate = () => {
   const [structuredHtml, setStructuredHtml] = useState<string>('');
   const [structuredHtmlCss, setStructuredHtmlCss] = useState<string>('');
   const [loadingStructured, setLoadingStructured] = useState(false);
+  const [relationships, setRelationships] = useState<AnnotationRelationship[]>([]);
+  const [showRelationshipModal, setShowRelationshipModal] = useState(false);
+  const [showRelationshipsList, setShowRelationshipsList] = useState(false);
+  const [newRelationship, setNewRelationship] = useState({
+    source_annotation_id: '',
+    target_annotation_id: '',
+    relationship_name: '',
+    description: ''
+  });
+  const [relationshipErrors, setRelationshipErrors] = useState<any>({});
   const [showAddTypeModal, setShowAddTypeModal] = useState(false);
   const [newTypeDisplayName, setNewTypeDisplayName] = useState('');
 
@@ -96,6 +125,7 @@ const DocumentAnnotate = () => {
       const page = documentData.pages.find(p => p.page_number === currentPage);
       if (page) {
         setAnnotations(page.annotations);
+        fetchPageRelationships();
       }
     }
   }, [currentPage, documentData]);
@@ -169,6 +199,22 @@ const DocumentAnnotate = () => {
       console.error('Error fetching annotation types:', error);
     }
   };
+
+  const fetchPageRelationships = async () => {
+  if (!currentPageData) return;
+  
+  try {
+    const response = await axiosInstance.get(`/annotation/relationships/page/${currentPageData.id}/`);
+    const data = response.data as { success: boolean; relationships: AnnotationRelationship[] };
+
+    if (data.success) {
+      setRelationships(data.relationships);
+    }
+  } catch (error) {
+    console.error('Error fetching relationships:', error);
+  }
+};
+
 
   const fetchStructuredHtml = async () => {
     setLoadingStructured(true);
@@ -475,6 +521,74 @@ const DocumentAnnotate = () => {
     }
   };
 
+  const handleCreateRelationship = async () => {
+  // Validation
+  const errors: any = {};
+  if (!newRelationship.source_annotation_id) {
+    errors.source = 'Veuillez sélectionner une annotation source';
+  }
+  if (!newRelationship.target_annotation_id) {
+    errors.target = 'Veuillez sélectionner une annotation cible';
+  }
+  if (newRelationship.source_annotation_id === newRelationship.target_annotation_id) {
+    errors.same = 'Les annotations source et cible doivent être différentes';
+  }
+  if (!newRelationship.relationship_name.trim()) {
+    errors.relationship = 'Veuillez entrer un nom de relation';
+  }
+
+  if (Object.keys(errors).length > 0) {
+    setRelationshipErrors(errors);
+    return;
+  }
+
+  try {
+    const response = await axiosInstance.post('/annotation/relationships/create/', newRelationship);
+      const data = response.data as { 
+        success: boolean; 
+        relationship: AnnotationRelationship;
+        message: string;
+        error?: string;
+      };
+
+
+    if (data.success) {
+      setRelationships([...relationships, data.relationship]);
+      setShowRelationshipModal(false);
+      setNewRelationship({
+        source_annotation_id: '',
+        target_annotation_id: '',
+        relationship_name: '',
+        description: ''
+      });
+      setRelationshipErrors({});
+      alert('Relation créée avec succès !');
+    }
+  } catch (error: any) {
+    console.error('Error creating relationship:', error);
+    alert(error.response?.data?.error || 'Erreur lors de la création de la relation');
+  }
+};
+
+const handleDeleteRelationship = async (relationshipId: number) => {
+  if (!confirm('Êtes-vous sûr de vouloir supprimer cette relation ?')) return;
+
+  try {
+    const response = await axiosInstance.delete(`/annotation/relationships/delete/${relationshipId}/`);
+    const data = response.data as { success: boolean; message: string };
+
+    if (data.success) {
+      setRelationships(relationships.filter(r => r.id !== relationshipId));
+      alert('Relation supprimée avec succès');
+    }
+  } catch (error) {
+    console.error('Error deleting relationship:', error);
+    alert('Erreur lors de la suppression de la relation');
+  }
+};
+
+
+
   const getXPath = (node: Node, offset: number): string => {
     const container = document.querySelector('.structured-html-view');
     if (!container || !node) return '';
@@ -641,6 +755,16 @@ const DocumentAnnotate = () => {
                     </span>
                   )}
                 </div>
+                <div className="flex items-center gap-2 mb-3 pb-3 border-b">
+                  <Button variant="outline" size="sm" onClick={() => setShowRelationshipModal(true)} className="bg-purple-50 border-purple-300 text-purple-700 hover:bg-purple-100">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Créer Relation
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setShowRelationshipsList(!showRelationshipsList)} className="bg-indigo-50 border-indigo-300 text-indigo-700 hover:bg-indigo-100">
+                    <LinkIcon className="w-4 h-4 mr-2" />
+                    Relations ({relationships.length})
+                  </Button>
+                </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   {annotationTypes.map((type) => (
                     <Button
@@ -706,6 +830,193 @@ const DocumentAnnotate = () => {
                     Créer
                   </Button>
                 </div>
+              </CardContent>
+            </Card>
+          </div>
+          
+        )}
+        {showRelationshipModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <CardHeader className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white">
+                <CardTitle className="flex items-center gap-2">
+                  <LinkIcon className="w-5 h-5" />
+                  Créer une Relation entre Annotations
+                </CardTitle>
+                <CardDescription className="text-purple-100">
+                  Liez deux annotations pour créer une relation sémantique
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-6">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Annotation Source *</label>
+                  <select 
+                    className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    value={newRelationship.source_annotation_id}
+                    onChange={(e) => setNewRelationship({...newRelationship, source_annotation_id: e.target.value})}
+                  >
+                    <option value="">-- Sélectionner annotation source --</option>
+                    {annotations.map((ann) => (
+                      <option key={ann.id} value={ann.id}>
+                        [{ann.type_display}] {ann.text.substring(0, 60)}{ann.text.length > 60 ? '...' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {relationshipErrors.source && <p className="text-red-600 text-xs mt-1">{relationshipErrors.source}</p>}
+                  {relationshipErrors.same && <p className="text-red-600 text-xs mt-1">{relationshipErrors.same}</p>}
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Annotation Cible *</label>
+                  <select 
+                    className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    value={newRelationship.target_annotation_id}
+                    onChange={(e) => setNewRelationship({...newRelationship, target_annotation_id: e.target.value})}
+                  >
+                    <option value="">-- Sélectionner annotation cible --</option>
+                    {annotations.map((ann) => (
+                      <option key={ann.id} value={ann.id}>
+                        [{ann.type_display}] {ann.text.substring(0, 60)}{ann.text.length > 60 ? '...' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {relationshipErrors.target && <p className="text-red-600 text-xs mt-1">{relationshipErrors.target}</p>}
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Type de Relation *</label>
+                  <input 
+                    type="text"
+                    className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    value={newRelationship.relationship_name}
+                    onChange={(e) => setNewRelationship({...newRelationship, relationship_name: e.target.value})}
+                    placeholder="Ex: approuvé_par, requis_pour, dépend_de..."
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Suggestions : approuvé_par, requis_pour, délivré_par, dépend_de, remplace, fait_référence_à, valide_pour
+                  </p>
+                  {relationshipErrors.relationship && <p className="text-red-600 text-xs mt-1">{relationshipErrors.relationship}</p>}
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Description (optionnel)</label>
+                  <textarea 
+                    className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    rows={3}
+                    value={newRelationship.description}
+                    onChange={(e) => setNewRelationship({...newRelationship, description: e.target.value})}
+                    placeholder="Ajoutez une description pour cette relation..."
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-4 border-t">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setShowRelationshipModal(false);
+                      setNewRelationship({
+                        source_annotation_id: '',
+                        target_annotation_id: '',
+                        relationship_name: '',
+                        description: ''
+                      });
+                      setRelationshipErrors({});
+                    }} 
+                    className="flex-1"
+                  >
+                    Annuler
+                  </Button>
+                  <Button 
+                    onClick={handleCreateRelationship} 
+                    className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700"
+                  >
+                    <LinkIcon className="w-4 h-4 mr-2" />
+                    Créer Relation
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {showRelationshipsList && relationships.length > 0 && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+              <CardHeader className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white sticky top-0 z-10">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <LinkIcon className="w-5 h-5" />
+                    Relations - Page {currentPage}
+                  </CardTitle>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setShowRelationshipsList(false)}
+                    className="text-white hover:bg-white/20"
+                  >
+                    ✕
+                  </Button>
+                </div>
+                <CardDescription className="text-indigo-100">
+                  {relationships.length} relation(s) trouvée(s) sur cette page
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6 space-y-4">
+                {relationships.map((rel) => (
+                  <div key={rel.id} className="border rounded-lg p-4 bg-gradient-to-r from-purple-50 to-indigo-50 hover:shadow-md transition-shadow">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 space-y-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1">
+                            <div className="text-xs text-gray-600 mb-1">Source</div>
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: rel.source.color }}></div>
+                              <Badge variant="outline" className="text-xs" style={{ borderColor: rel.source.color, color: rel.source.color }}>
+                                {rel.source.type}
+                              </Badge>
+                              <span className="text-sm font-medium">{rel.source.text.substring(0, 50)}{rel.source.text.length > 50 ? '...' : ''}</span>
+                            </div>
+                          </div>
+                          <div className="px-3">
+                            <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1">
+                              <span>→</span>
+                              <span>{rel.relationship_name.replace(/_/g, ' ')}</span>
+                              <span>→</span>
+                            </div>
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-xs text-gray-600 mb-1">Cible</div>
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: rel.target.color }}></div>
+                              <Badge variant="outline" className="text-xs" style={{ borderColor: rel.target.color, color: rel.target.color }}>
+                                {rel.target.type}
+                              </Badge>
+                              <span className="text-sm font-medium">{rel.target.text.substring(0, 50)}{rel.target.text.length > 50 ? '...' : ''}</span>
+                            </div>
+                          </div>
+                        </div>
+                        {rel.description && (
+                          <div className="text-sm text-gray-600 italic pl-4 border-l-2 border-purple-300">
+                            {rel.description}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-3 text-xs text-gray-500">
+                          <span>Créé par: {rel.created_by}</span>
+                          <span>•</span>
+                          <span>{new Date(rel.created_at).toLocaleString('fr-FR')}</span>
+                        </div>
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => handleDeleteRelationship(rel.id)}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </CardContent>
             </Card>
           </div>

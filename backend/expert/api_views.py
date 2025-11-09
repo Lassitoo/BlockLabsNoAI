@@ -14,7 +14,8 @@ from django.utils import timezone
 from datetime import timedelta
 import json
 
-from rawdocs.models import RawDocument, DocumentPage, Annotation, AnnotationType
+
+from rawdocs.models import RawDocument, DocumentPage, Annotation, AnnotationType, AnnotationRelationship
 from expert.models import ExpertLog, ExpertDelta
 
 
@@ -743,6 +744,328 @@ def get_model_evaluation_data(request):
         print(f"!!! ERREUR EXCEPTION: {e}")
         import traceback
         print(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+    
+@require_http_methods(["GET"])
+@login_required
+def get_page_relationships_for_expert(request, page_id):
+    """
+    GET /api/expert/pages/{page_id}/relationships/
+    Get all relationships for a page for expert review
+    """
+    try:
+        from rawdocs.models import DocumentPage, AnnotationRelationship
+        
+        page = DocumentPage.objects.get(id=page_id)
+        
+        # Get all annotation IDs on this page
+        annotation_ids = page.annotations.values_list('id', flat=True)
+        
+        # Get relationships where source or target is on this page
+        relationships = AnnotationRelationship.objects.filter(
+            Q(source_annotation_id__in=annotation_ids) |
+            Q(target_annotation_id__in=annotation_ids)
+        ).select_related(
+            'source_annotation__annotation_type',
+            'target_annotation__annotation_type',
+            'created_by'
+        )
+        
+        relationships_data = []
+        for rel in relationships:
+            relationships_data.append({
+                'id': rel.id,
+                'source': {
+                    'id': rel.source_annotation.id,
+                    'text': rel.source_annotation.selected_text,
+                    'type': rel.source_annotation.annotation_type.display_name,
+                    'color': rel.source_annotation.annotation_type.color
+                },
+                'target': {
+                    'id': rel.target_annotation.id,
+                    'text': rel.target_annotation.selected_text,
+                    'type': rel.target_annotation.annotation_type.display_name,
+                    'color': rel.target_annotation.annotation_type.color
+                },
+                'relationship_name': rel.relationship_name,
+                'description': rel.description,
+                'created_by': rel.created_by.username if rel.created_by else 'Unknown',
+                'created_at': rel.created_at.isoformat(),
+                'is_validated': getattr(rel, 'is_validated', False)
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'relationships': relationships_data
+        })
+        
+    except DocumentPage.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Page not found'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@login_required
+def validate_relationship(request, relationship_id):
+    """
+    POST /api/expert/relationships/{relationship_id}/validate/
+    Validate (approve) a relationship
+    Body: { "action": "validate" }
+    """
+    try:
+        from rawdocs.models import AnnotationRelationship
+        
+        data = json.loads(request.body)
+        action = data.get('action')
+
+        if action != 'validate':
+            return JsonResponse({
+                'success': False,
+                'error': 'Action must be "validate"'
+            }, status=400)
+
+        relationship = AnnotationRelationship.objects.select_related(
+            'source_annotation__annotation_type',
+            'target_annotation__annotation_type',
+            'created_by'
+        ).get(id=relationship_id)
+
+        # Validate the relationship
+        relationship.is_validated = True
+        relationship.validated_by = request.user
+        relationship.validated_at = timezone.now()
+        relationship.save()
+        
+        # Log the action
+        ExpertLog.objects.create(
+            expert=request.user,
+            document_id=relationship.source_annotation.page.document.id,
+            document_title=relationship.source_annotation.page.document.title or f'Document {relationship.source_annotation.page.document.id}',
+            page_id=relationship.source_annotation.page.id,
+            page_number=relationship.source_annotation.page.page_number,
+            action='relationship_validated',
+            annotation_id=relationship.id,
+            annotation_text=f"{relationship.source_annotation.selected_text} → {relationship.relationship_name} → {relationship.target_annotation.selected_text}",
+            annotation_entity_type='relationship',
+            original_annotator=relationship.created_by.username if relationship.created_by else 'System'
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Relationship validated successfully',
+            'relationship_id': relationship_id
+        })
+
+    except AnnotationRelationship.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Relationship not found'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+    
+
+@csrf_exempt
+@require_http_methods(["PUT"])
+@login_required
+def update_relationship(request, relationship_id):
+    """
+    PUT /api/expert/relationships/{relationship_id}/update/
+    Update a relationship (can change source, target, name, description)
+    Body: { 
+        "source_annotation_id": ..., 
+        "target_annotation_id": ...,
+        "relationship_name": "...", 
+        "description": "...", 
+        "validate": true 
+    }
+    """
+    try:
+        from rawdocs.models import AnnotationRelationship, Annotation
+        
+        data = json.loads(request.body)
+        relationship = AnnotationRelationship.objects.select_related(
+            'source_annotation__annotation_type',
+            'target_annotation__annotation_type',
+            'created_by'
+        ).get(id=relationship_id)
+
+        # Store old values for logging
+        old_source_text = relationship.source_annotation.selected_text
+        old_target_text = relationship.target_annotation.selected_text
+        old_name = relationship.relationship_name
+        old_description = relationship.description
+        
+        # Update source annotation if provided
+        if 'source_annotation_id' in data:
+            new_source = Annotation.objects.get(id=data['source_annotation_id'])
+            relationship.source_annotation = new_source
+        
+        # Update target annotation if provided
+        if 'target_annotation_id' in data:
+            new_target = Annotation.objects.get(id=data['target_annotation_id'])
+            relationship.target_annotation = new_target
+        
+        # Update relationship name and description
+        if 'relationship_name' in data:
+            relationship.relationship_name = data['relationship_name']
+        if 'description' in data:
+            relationship.description = data['description']
+        
+        # Validate if requested
+        should_validate = data.get('validate', False)
+        if should_validate:
+            relationship.is_validated = True
+            relationship.validated_by = request.user
+            relationship.validated_at = timezone.now()
+        
+        relationship.save()
+        
+        # Prepare change summary
+        new_source_text = relationship.source_annotation.selected_text
+        new_target_text = relationship.target_annotation.selected_text
+        
+        change_parts = []
+        if old_source_text != new_source_text:
+            change_parts.append(f"Source: '{old_source_text[:30]}...' → '{new_source_text[:30]}...'")
+        if old_target_text != new_target_text:
+            change_parts.append(f"Target: '{old_target_text[:30]}...' → '{new_target_text[:30]}...'")
+        if old_name != relationship.relationship_name:
+            change_parts.append(f"Type: '{old_name}' → '{relationship.relationship_name}'")
+        
+        change_summary = " | ".join(change_parts) if change_parts else "Description modifiée"
+        
+        # Log the action
+        ExpertLog.objects.create(
+            expert=request.user,
+            document_id=relationship.source_annotation.page.document.id,
+            document_title=relationship.source_annotation.page.document.title or f'Document {relationship.source_annotation.page.document.id}',
+            page_id=relationship.source_annotation.page.id,
+            page_number=relationship.source_annotation.page.page_number,
+            action='relationship_modified',
+            annotation_id=relationship.id,
+            old_text=f"{old_source_text} → {old_name} → {old_target_text}",
+            new_text=f"{new_source_text} → {relationship.relationship_name} → {new_target_text}",
+            annotation_entity_type='relationship',
+            original_annotator=relationship.created_by.username if relationship.created_by else 'System',
+            reason=change_summary
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Relationship updated successfully',
+            'relationship': {
+                'id': relationship.id,
+                'source': {
+                    'id': relationship.source_annotation.id,
+                    'text': relationship.source_annotation.selected_text,
+                    'type': relationship.source_annotation.annotation_type.display_name,
+                    'color': relationship.source_annotation.annotation_type.color
+                },
+                'target': {
+                    'id': relationship.target_annotation.id,
+                    'text': relationship.target_annotation.selected_text,
+                    'type': relationship.target_annotation.annotation_type.display_name,
+                    'color': relationship.target_annotation.annotation_type.color
+                },
+                'relationship_name': relationship.relationship_name,
+                'description': relationship.description,
+                'is_validated': relationship.is_validated
+            }
+        })
+
+    except Annotation.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Annotation not found'
+        }, status=404)
+    except AnnotationRelationship.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Relationship not found'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+    
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+@login_required
+def delete_relationship(request, relationship_id):
+    """
+    DELETE /api/expert/relationships/{relationship_id}/delete/
+    Delete a relationship
+    """
+    try:
+        from rawdocs.models import AnnotationRelationship
+        
+        relationship = AnnotationRelationship.objects.select_related(
+            'source_annotation__annotation_type',
+            'target_annotation__annotation_type',
+            'created_by'
+        ).get(id=relationship_id)
+
+        # Store info for logging before deletion
+        doc_id = relationship.source_annotation.page.document.id
+        doc_title = relationship.source_annotation.page.document.title or f'Document {relationship.source_annotation.page.document.id}'
+        page_id = relationship.source_annotation.page.id
+        page_number = relationship.source_annotation.page.page_number
+        relationship_text = f"{relationship.source_annotation.selected_text} → {relationship.relationship_name} → {relationship.target_annotation.selected_text}"
+        created_by = relationship.created_by.username if relationship.created_by else 'System'
+        
+        # Delete the relationship
+        relationship.delete()
+        
+        # Log the action
+        ExpertLog.objects.create(
+            expert=request.user,
+            document_id=doc_id,
+            document_title=doc_title,
+            page_id=page_id,
+            page_number=page_number,
+            action='relationship_rejected',
+            annotation_id=relationship_id,
+            annotation_text=relationship_text,
+            annotation_entity_type='relationship',
+            original_annotator=created_by
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Relationship deleted successfully'
+        })
+
+    except AnnotationRelationship.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Relationship not found'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         return JsonResponse({
             'success': False,
             'error': str(e)

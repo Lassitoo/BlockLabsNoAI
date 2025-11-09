@@ -20,6 +20,9 @@ class ExpertLog(models.Model):
         ('sentence_reviewed', 'Phrase révisée'),
         ('annotation_type_created', 'Type d\'annotation créé'),
         ('annotation_type_deleted', 'Type d\'annotation supprimé'),
+        ('relationship_validated', 'Relation validée'),
+        ('relationship_rejected', 'Relation rejetée'),
+        ('relationship_modified', 'Relation modifiée'),
 
     ]
 

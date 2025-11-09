@@ -802,3 +802,36 @@ class MetadataLearningMetrics(models.Model):
     total_feedbacks = models.IntegerField()
     avg_feedback_score = models.FloatField()
     created_at = models.DateTimeField(auto_now_add=True)
+
+class AnnotationRelationship(models.Model):
+    """Represents a relationship between two annotations"""
+    source_annotation = models.ForeignKey(
+        Annotation,
+        on_delete=models.CASCADE,
+        related_name='outgoing_relationships'
+    )
+    target_annotation = models.ForeignKey(
+        Annotation,
+        on_delete=models.CASCADE,
+        related_name='incoming_relationships'
+    )
+    relationship_name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_validated = models.BooleanField(default=False)
+    validated_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='validated_relationships'
+    )
+    validated_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        unique_together = ('source_annotation', 'target_annotation', 'relationship_name')
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.source_annotation.selected_text[:30]} → {self.relationship_name} → {self.target_annotation.selected_text[:30]}"

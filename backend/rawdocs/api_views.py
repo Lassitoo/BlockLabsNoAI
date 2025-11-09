@@ -24,7 +24,7 @@ from bs4 import BeautifulSoup
 
 from rawdocs.models import (
     RawDocument, DocumentPage, Annotation, AnnotationType,
-    MetadataFeedback, MetadataLearningMetrics, MetadataLog, CustomField, CustomFieldValue
+    MetadataFeedback, MetadataLearningMetrics, MetadataLog, CustomField, CustomFieldValue, AnnotationRelationship  
 )
 from .utils import extract_exif_metadata  # Import your actual function
 from django.db import transaction
@@ -2676,6 +2676,171 @@ def view_original_pdf(request, doc_id):
     except Exception as e:
         import traceback
         traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+    
+@csrf_exempt
+@require_http_methods(["POST"])
+@login_required
+def create_annotation_relationship(request):
+    """Create a relationship between two annotations"""
+    try:
+        data = json.loads(request.body)
+        source_id = data.get('source_annotation_id')
+        target_id = data.get('target_annotation_id')
+        relationship_name = data.get('relationship_name', '').strip()
+        description = data.get('description', '').strip()
+        
+        if not source_id or not target_id or not relationship_name:
+            return JsonResponse({
+                'success': False,
+                'error': 'Source, target, and relationship name are required'
+            }, status=400)
+        
+        if source_id == target_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Cannot create relationship with same annotation'
+            }, status=400)
+        
+        source = get_object_or_404(Annotation, id=source_id)
+        target = get_object_or_404(Annotation, id=target_id)
+        
+        # Check if relationship already exists
+        existing = AnnotationRelationship.objects.filter(
+            source_annotation=source,
+            target_annotation=target,
+            relationship_name=relationship_name
+        ).first()
+        
+        if existing:
+            return JsonResponse({
+                'success': False,
+                'error': 'This relationship already exists'
+            }, status=400)
+        
+        # Create relationship
+        relationship = AnnotationRelationship.objects.create(
+            source_annotation=source,
+            target_annotation=target,
+            relationship_name=relationship_name,
+            description=description,
+            created_by=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'relationship': {
+                'id': relationship.id,
+                'source': {
+                    'id': source.id,
+                    'text': source.selected_text,
+                    'type': source.annotation_type.display_name,
+                    'color': source.annotation_type.color
+                },
+                'target': {
+                    'id': target.id,
+                    'text': target.selected_text,
+                    'type': target.annotation_type.display_name,
+                    'color': target.annotation_type.color
+                },
+                'relationship_name': relationship.relationship_name,
+                'description': relationship.description,
+                'created_at': relationship.created_at.isoformat()
+            },
+            'message': 'Relationship created successfully'
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@require_http_methods(["GET"])
+@login_required
+def get_page_relationships(request, page_id):
+    """Get all relationships for annotations on a page"""
+    try:
+        page = get_object_or_404(DocumentPage, id=page_id)
+        
+        # Get all annotation IDs on this page
+        annotation_ids = page.annotations.values_list('id', flat=True)
+        
+        # Get relationships where source or target is on this page
+        relationships = AnnotationRelationship.objects.filter(
+            Q(source_annotation_id__in=annotation_ids) |
+            Q(target_annotation_id__in=annotation_ids)
+        ).select_related(
+            'source_annotation__annotation_type',
+            'target_annotation__annotation_type',
+            'created_by'
+        )
+        
+        relationships_data = []
+        for rel in relationships:
+            relationships_data.append({
+                'id': rel.id,
+                'source': {
+                    'id': rel.source_annotation.id,
+                    'text': rel.source_annotation.selected_text,
+                    'type': rel.source_annotation.annotation_type.display_name,
+                    'color': rel.source_annotation.annotation_type.color
+                },
+                'target': {
+                    'id': rel.target_annotation.id,
+                    'text': rel.target_annotation.selected_text,
+                    'type': rel.target_annotation.annotation_type.display_name,
+                    'color': rel.target_annotation.annotation_type.color
+                },
+                'relationship_name': rel.relationship_name,
+                'description': rel.description,
+                'created_by': rel.created_by.username if rel.created_by else 'Unknown',
+                'created_at': rel.created_at.isoformat()
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'relationships': relationships_data
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+@login_required
+def delete_annotation_relationship(request, relationship_id):
+    """Delete an annotation relationship"""
+    try:
+        relationship = get_object_or_404(AnnotationRelationship, id=relationship_id)
+        
+        # Check permissions
+        if relationship.created_by != request.user and not request.user.groups.filter(name="Expert").exists():
+            return JsonResponse({
+                'success': False,
+                'error': 'Permission denied'
+            }, status=403)
+        
+        relationship.delete()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Relationship deleted successfully'
+        })
+        
+    except Exception as e:
         return JsonResponse({
             'success': False,
             'error': str(e)

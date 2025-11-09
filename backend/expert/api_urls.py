@@ -26,4 +26,10 @@ urlpatterns = [
 
     # Model Evaluation
     path('evaluation/', api_views.get_model_evaluation_data, name='evaluation'),
+    # Relationship Validation
+    path('pages/<int:page_id>/relationships/', api_views.get_page_relationships_for_expert, name='page_relationships'),
+    path('relationships/<int:relationship_id>/validate/', api_views.validate_relationship, name='validate_relationship'),
+    path('relationships/<int:relationship_id>/update/', api_views.update_relationship, name='update_relationship'),
+    path('relationships/<int:relationship_id>/delete/', api_views.delete_relationship, name='delete_relationship'),  # ADD THIS LINE
+
 ]
