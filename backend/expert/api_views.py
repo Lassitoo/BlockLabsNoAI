@@ -234,6 +234,7 @@ def get_document_review_data(request, doc_id):
                 page_preview = page_text[:100] + '...' if len(page_text) > 100 else page_text
 
                 pages_with_annotations[page_num] = {
+                    'page_id': annotation.page.id,  # Add the actual database ID
                     'page_text_preview': page_preview,
                     'annotations': []
                 }

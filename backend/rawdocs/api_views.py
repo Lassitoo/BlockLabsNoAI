@@ -2800,6 +2800,7 @@ def get_page_relationships(request, page_id):
                 },
                 'relationship_name': rel.relationship_name,
                 'description': rel.description,
+                'is_validated': rel.is_validated,
                 'created_by': rel.created_by.username if rel.created_by else 'Unknown',
                 'created_at': rel.created_at.isoformat()
             })

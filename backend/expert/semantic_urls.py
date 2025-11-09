@@ -16,35 +16,6 @@ urlpatterns = [
         name='api_expert_document_json'
     ),
 
-    # ==================== JSON ENRICHI ====================
-    # GET /api/expert/documents/{id}/json-enriched/
-    path(
-        'documents/<int:id>/json-enriched/',
-        semantic_api_views.get_document_json_enriched,
-        name='api_expert_document_json_enriched'
-    ),
-
-    # POST /api/expert/documents/{id}/enrich-json/
-    path(
-        'documents/<int:id>/enrich-json/',
-        semantic_api_views.enrich_document_json,
-        name='api_expert_enrich_json'
-    ),
-
-    # POST /api/expert/documents/{id}/save-enriched-json/
-    path(
-        'documents/<int:id>/save-enriched-json/',
-        semantic_api_views.save_enriched_json,
-        name='api_expert_save_enriched_json'
-    ),
-
-    # POST /api/expert/documents/{id}/regenerate-json/
-    path(
-        'documents/<int:id>/regenerate-json/',
-        semantic_api_views.regenerate_json,
-        name='api_expert_regenerate_json'
-    ),
-
     # ==================== JSON DE PAGE SPÉCIFIQUE ====================
     # GET/PUT /api/expert/documents/{id}/pages/{page_number}/json/
     path(

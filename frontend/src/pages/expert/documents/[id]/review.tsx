@@ -35,6 +35,7 @@ interface Annotation {
 
 interface PageAnnotations {
   [pageNum: string]: {
+    page_id: number;
     page_text_preview: string;
     annotations: Annotation[];
   };
@@ -139,23 +140,24 @@ useEffect(() => {
   if (!document) return;
   
   try {
-    // Get all page IDs from the document
-    const pageIds = Object.values(document.pages_with_annotations).map((page: any) => page.page_id);
-    
-    // For simplicity, let's fetch relationships for the first page
-    // In production, you'd want to fetch for all pages or current page
     const allRelationships: any[] = [];
     
-    for (const pageNum of Object.keys(document.pages_with_annotations)) {
-      // You need to get the page_id from somewhere - let's add it to the API response
-      // For now, we'll use a workaround
+    // Iterate through pages and fetch relationships using the actual page_id
+    for (const [pageNum, pageData] of Object.entries(document.pages_with_annotations)) {
+      const pageId = (pageData as any).page_id;
+      
+      if (!pageId) {
+        console.warn(`No page_id found for page ${pageNum}`);
+        continue;
+      }
+      
       try {
-        const response = await axios.get(`/annotation/relationships/page/${pageNum}/`);
+        const response = await axios.get(`/annotation/relationships/page/${pageId}/`);
         if (response.data.success) {
           allRelationships.push(...response.data.relationships);
         }
       } catch (error) {
-        console.error(`Error fetching relationships for page ${pageNum}:`, error);
+        console.error(`Error fetching relationships for page ${pageNum} (ID: ${pageId}):`, error);
       }
     }
     
