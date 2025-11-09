@@ -98,6 +98,36 @@ export default function DocumentJsonViewer() {
     URL.revokeObjectURL(url);
   };
 
+  const handleSaveJson = async (editedJson: string) => {
+    try {
+      const parsedJson = JSON.parse(editedJson);
+      
+      const response = await fetch(
+        `http://localhost:8000/api/annotation/document/${id}/save-json/`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            json_data: parsedJson,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erreur lors de la sauvegarde');
+      }
+
+      // Refresh the document data
+      await fetchDocumentJson();
+    } catch (error: any) {
+      throw new Error(error.message || 'Erreur lors de la sauvegarde du JSON');
+    }
+  };
+
   const handleRegenerate = async () => {
     try {
       const response = await fetch(
@@ -259,6 +289,7 @@ export default function DocumentJsonViewer() {
                   readOnly={true}
                   onCopy={handleCopyJson}
                   onDownload={handleDownloadJson}
+                  onSave={handleSaveJson}
                   showActions={true}
                 />
 

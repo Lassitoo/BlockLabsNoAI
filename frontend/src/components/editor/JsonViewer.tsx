@@ -1,5 +1,6 @@
 // components/editor/JsonViewer.tsx
 // Composant JSON Viewer avec le même style que les templates Django
+import { useState, useEffect, useRef } from 'react';
 
 interface JsonViewerProps {
   value: string | object;
@@ -9,6 +10,7 @@ interface JsonViewerProps {
   onChange?: (value: string) => void;
   onCopy?: () => void;
   onDownload?: () => void;
+  onSave?: (value: string) => Promise<void>;
   showActions?: boolean;
 }
 
@@ -40,14 +42,61 @@ export const JsonViewer = ({
   onChange,
   onCopy,
   onDownload,
+  onSave,
   showActions = true,
 }: JsonViewerProps) => {
   const jsonString = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+  
+  const [editedValue, setEditedValue] = useState<string>(jsonString);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const prevValueRef = useRef<string>(jsonString);
+
   const highlightedJson = syntaxHighlight(jsonString);
+  
+  // Update editedValue only when value prop changes significantly (not during typing)
+  useEffect(() => {
+    if (jsonString !== prevValueRef.current && !isEditing) {
+      setEditedValue(jsonString);
+      prevValueRef.current = jsonString;
+    }
+  }, [jsonString, isEditing]);
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newValue = e.target.value;
+    setEditedValue(newValue);
     if (onChange && !readOnly) {
-      onChange(e.target.value);
+      onChange(newValue);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!onSave) return;
+    
+    try {
+      setIsSaving(true);
+      setSaveError(null);
+      setSaveSuccess(false);
+      
+      // Validate JSON
+      try {
+        JSON.parse(editedValue);
+      } catch (e) {
+        setSaveError('JSON invalide. Veuillez corriger les erreurs de syntaxe.');
+        setIsSaving(false);
+        return;
+      }
+      
+      await onSave(editedValue);
+      setSaveSuccess(true);
+      setIsEditing(false);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (error: any) {
+      setSaveError(error.message || 'Erreur lors de la sauvegarde');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -62,12 +111,22 @@ export const JsonViewer = ({
         </span>
       </div>
       <div className="json-editor-body">
+        {saveSuccess && (
+          <div className="alert alert-success">
+            ✅ JSON sauvegardé avec succès!
+          </div>
+        )}
+        {saveError && (
+          <div className="alert alert-error">
+            ❌ {saveError}
+          </div>
+        )}
         <div className="monaco-editor" style={{ height }}>
-          {readOnly ? (
+          {readOnly && !isEditing ? (
             <pre className="json-content" dangerouslySetInnerHTML={{ __html: highlightedJson }} />
           ) : (
             <textarea
-              value={jsonString}
+              value={editedValue}
               onChange={handleChange}
               className="json-textarea"
               style={{ height: '100%', width: '100%' }}
@@ -77,6 +136,44 @@ export const JsonViewer = ({
         </div>
         {showActions && (
           <div className="json-actions">
+            {!readOnly && onSave && (
+              <button 
+                className="copy-btn save-btn" 
+                onClick={handleSave}
+                disabled={isSaving}
+              >
+                <i className="fas fa-save"></i> {isSaving ? 'Sauvegarde...' : 'Sauvegarder JSON'}
+              </button>
+            )}
+            {readOnly && onSave && !isEditing && (
+              <button 
+                className="copy-btn edit-btn" 
+                onClick={() => setIsEditing(true)}
+              >
+                <i className="fas fa-edit"></i> Éditer JSON
+              </button>
+            )}
+            {readOnly && isEditing && (
+              <>
+                <button 
+                  className="copy-btn save-btn" 
+                  onClick={handleSave}
+                  disabled={isSaving}
+                >
+                  <i className="fas fa-save"></i> {isSaving ? 'Sauvegarde...' : 'Sauvegarder'}
+                </button>
+                <button 
+                  className="copy-btn cancel-btn" 
+                  onClick={() => {
+                    setIsEditing(false);
+                    setEditedValue(jsonString);
+                    setSaveError(null);
+                  }}
+                >
+                  <i className="fas fa-times"></i> Annuler
+                </button>
+              </>
+            )}
             {onCopy && (
               <button className="copy-btn" onClick={onCopy}>
                 <i className="fas fa-copy"></i> Copier le JSON
@@ -222,6 +319,62 @@ export const JsonViewer = ({
           background: linear-gradient(135deg, #059669, #10b981);
           transform: translateY(-2px);
           box-shadow: 0 8px 20px rgba(16, 185, 129, 0.25);
+        }
+
+        .copy-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+          transform: none;
+        }
+
+        .save-btn {
+          background: linear-gradient(135deg, #3b82f6, #2563eb);
+          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+        }
+
+        .save-btn:hover:not(:disabled) {
+          background: linear-gradient(135deg, #2563eb, #1d4ed8);
+          box-shadow: 0 8px 20px rgba(59, 130, 246, 0.25);
+        }
+
+        .edit-btn {
+          background: linear-gradient(135deg, #f59e0b, #d97706);
+          box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+        }
+
+        .edit-btn:hover {
+          background: linear-gradient(135deg, #d97706, #b45309);
+          box-shadow: 0 8px 20px rgba(245, 158, 11, 0.25);
+        }
+
+        .cancel-btn {
+          background: linear-gradient(135deg, #ef4444, #dc2626);
+          box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+        }
+
+        .cancel-btn:hover {
+          background: linear-gradient(135deg, #dc2626, #b91c1c);
+          box-shadow: 0 8px 20px rgba(239, 68, 68, 0.25);
+        }
+
+        .alert {
+          padding: 0.75rem 1rem;
+          border-radius: 8px;
+          margin-bottom: 1rem;
+          font-size: 0.9rem;
+          font-weight: 500;
+        }
+
+        .alert-success {
+          background: rgba(5, 150, 105, 0.12);
+          color: #047857;
+          border: 1px solid rgba(5, 150, 105, 0.25);
+        }
+
+        .alert-error {
+          background: rgba(239, 68, 68, 0.12);
+          color: #dc2626;
+          border: 1px solid rgba(239, 68, 68, 0.25);
         }
       `}</style>
     </div>

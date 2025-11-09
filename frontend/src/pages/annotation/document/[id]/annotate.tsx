@@ -1068,6 +1068,7 @@ const handleDeleteRelationship = async (relationshipId: number) => {
             annotationTypes={annotationTypes}
             onDeleteAnnotation={handleDeleteAnnotation}
             onRefresh={fetchDocument}
+            documentId={documentId}
           />
         </div>
 
