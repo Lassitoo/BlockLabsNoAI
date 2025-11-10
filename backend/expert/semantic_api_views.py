@@ -19,6 +19,106 @@ from expert.json_enrichment import JSONEnricher
 from expert.learning_service import ExpertLearningService
 
 
+def generate_complete_json(document):
+    """Génère le JSON complet (entities, relations, validated_qa) pour un document"""
+    total_pages = document.pages.count()
+    annotations_json = document.global_annotations_json
+
+    if not annotations_json or not annotations_json.get('entities'):
+        all_annotations = Annotation.objects.filter(
+            page__document=document, is_validated=True
+        ).select_related('annotation_type', 'page')
+
+        entities_by_type = {}
+        for ann in all_annotations:
+            type_display = ann.annotation_type.display_name if ann.annotation_type else 'Unknown'
+            if type_display not in entities_by_type:
+                entities_by_type[type_display] = []
+            text = ann.selected_text or ann.text or ''
+            if text and text not in entities_by_type[type_display]:
+                entities_by_type[type_display].append(text)
+
+        annotations_json = {
+            'document': {
+                'id': str(document.id),
+                'title': document.title or f'Document {document.id}',
+                'total_pages': total_pages,
+                'total_annotations': all_annotations.count()
+            },
+            'entities': entities_by_type,
+            'generated_at': timezone.now().isoformat()
+        }
+
+    # 🔥 TOUJOURS régénérer les relations depuis la DB (même si le champ existe)
+    if annotations_json:
+        from rawdocs.models import AnnotationRelationship
+        page_ids = document.pages.values_list('id', flat=True)
+        annotation_ids = Annotation.objects.filter(page_id__in=page_ids).values_list('id', flat=True)
+        validated_relations = AnnotationRelationship.objects.filter(
+            Q(source_annotation_id__in=annotation_ids) | Q(target_annotation_id__in=annotation_ids),
+            is_validated=True
+        ).select_related('source_annotation__annotation_type', 'target_annotation__annotation_type')
+
+        relations_list = []
+        for rel in validated_relations:
+            relations_list.append({
+                'id': rel.id,
+                'type': rel.relationship_name,
+                'source': {
+                    'type': rel.source_annotation.annotation_type.display_name,
+                    'value': rel.source_annotation.selected_text,
+                    'annotation_id': rel.source_annotation.id,
+                    'page': rel.source_annotation.page.page_number
+                },
+                'target': {
+                    'type': rel.target_annotation.annotation_type.display_name,
+                    'value': rel.target_annotation.selected_text,
+                    'annotation_id': rel.target_annotation.id,
+                    'page': rel.target_annotation.page.page_number
+                },
+                'description': rel.description or '',
+                'validated': True,
+                'validated_at': rel.validated_at.isoformat() if rel.validated_at else None,
+                'validated_by': rel.validated_by.username if rel.validated_by else None
+            })
+        annotations_json['relations'] = relations_list
+        if 'metadata' not in annotations_json:
+            annotations_json['metadata'] = {}
+        annotations_json['metadata']['total_relations'] = len(relations_list)
+
+    # 🔥 TOUJOURS régénérer les Q&A validées depuis la DB (même si le champ existe)
+    if annotations_json:
+        from expert.models import ValidatedQA
+        validated_qa_list = ValidatedQA.objects.filter(
+            Q(document=document) | Q(is_global=True), is_active=True
+        ).order_by('-confidence_score', '-usage_count')
+
+        qa_data = []
+        for qa in validated_qa_list:
+            qa_data.append({
+                'id': qa.id,
+                'question': qa.question,
+                'question_normalized': qa.question_normalized,
+                'answer': qa.answer,
+                'source_type': qa.source_type,
+                'json_path': qa.json_path,
+                'confidence': qa.confidence_score,
+                'usage_count': qa.usage_count,
+                'correction_count': qa.correction_count,
+                'corrections': qa.previous_answers,
+                'validated_by': qa.validated_by.username if qa.validated_by else None,
+                'validated_at': qa.validated_at.isoformat() if qa.validated_at else None,
+                'tags': qa.tags,
+                'is_global': qa.is_global
+            })
+        annotations_json['validated_qa'] = qa_data
+        if 'metadata' not in annotations_json:
+            annotations_json['metadata'] = {}
+        annotations_json['metadata']['total_validated_qa'] = len(qa_data)
+
+    return annotations_json
+
+
 # ==================== 1. JSON BASIQUE DU DOCUMENT ====================
 
 @require_http_methods(["GET"])
@@ -60,39 +160,13 @@ def get_document_json(request, id):
         if total_pages > 0:
             progression = int((annotated_pages / total_pages) * 100)
 
-        # Récupérer ou générer le JSON global
-        annotations_json = document.global_annotations_json
-        if not annotations_json or not annotations_json.get('entities'):
-            # Générer à partir de toutes les annotations validées
-            all_annotations = Annotation.objects.filter(
-                page__document=document,
-                is_validated=True
-            ).select_related('annotation_type', 'page')
+        # 🔥 GÉNÉRER LE JSON COMPLET (entities + relations + validated_qa)
+        annotations_json = generate_complete_json(document)
 
-            # Grouper les entités par type (seulement les textes, pas les détails)
-            entities_by_type = {}
-            for ann in all_annotations:
-                type_display = ann.annotation_type.display_name if ann.annotation_type else 'Unknown'
-                if type_display not in entities_by_type:
-                    entities_by_type[type_display] = []
-
-                # Ajouter uniquement le texte (pas de duplication)
-                text = ann.selected_text or ann.text or ''
-                if text and text not in entities_by_type[type_display]:
-                    entities_by_type[type_display].append(text)
-
-            annotations_json = {
-                'document': {
-                    'id': str(document.id),
-                    'title': document.title or f'Document {document.id}',
-                    'doc_type': document.doc_type or 'unknown',
-                    'source': document.source or 'client',
-                    'total_pages': total_pages,
-                    'total_annotations': all_annotations.count()
-                },
-                'entities': entities_by_type,
-                'generated_at': timezone.now().isoformat()
-            }
+        # Sauvegarder dans la DB pour que l'assistant puisse l'utiliser
+        if annotations_json != document.global_annotations_json:
+            document.global_annotations_json = annotations_json
+            document.save(update_fields=['global_annotations_json'])
 
         return JsonResponse({
             'success': True,
@@ -122,9 +196,305 @@ def get_document_json(request, id):
         }, status=500)
 
 
+@csrf_exempt
+@require_http_methods(["POST"])
+def update_document_json(request, id):
+    """
+    POST /api/expert/documents/{id}/json/update/
+    Met à jour le JSON global du document après édition manuelle
+    """
+    try:
+        document = get_object_or_404(RawDocument, id=id)
+
+        # Parser les données
+        data = json.loads(request.body)
+        new_json = data.get('global_annotations_json')
+
+        if not new_json:
+            return JsonResponse({
+                'success': False,
+                'error': 'global_annotations_json requis'
+            }, status=400)
+
+        # Sauvegarder le nouveau JSON
+        document.global_annotations_json = new_json
+        document.save(update_fields=['global_annotations_json'])
+
+        return JsonResponse({
+            'success': True,
+            'message': 'JSON sauvegardé avec succès',
+            'document_id': document.id
+        })
+
+    except RawDocument.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Document non trouvé'
+        }, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'JSON invalide'
+        }, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
 # ==================== 2. JSON ENRICHI SÉMANTIQUE ====================
 
-# ==================== 3. JSON D'UNE PAGE SPÉCIFIQUE ====================
+@require_http_methods(["GET"])
+@login_required
+def get_document_json_enriched(request, id):
+    """
+    GET /api/expert/documents/{id}/json-enriched/
+    Récupère le JSON enrichi sémantique avec relations, Q&A, etc.
+    """
+    try:
+        document = get_object_or_404(RawDocument, id=id)
+
+        # Vérifier l'accès
+        if not document.is_accessible_by(request.user):
+            return JsonResponse({
+                'success': False,
+                'error': 'Accès non autorisé'
+            }, status=403)
+
+        total_annotations = Annotation.objects.filter(
+            page__document=document
+        ).count()
+
+        return JsonResponse({
+            'success': True,
+            'document': {
+                'id': document.id,
+                'title': document.title or f'Document {document.id}',
+                'doc_type': document.doc_type or '',
+                'source': document.source or '',
+                'country': document.country or ''
+            },
+            'basic_json': document.global_annotations_json or {},
+            'enriched_json': document.enriched_annotations_json or {
+                'relations': [],
+                'questions_answers': [],
+                'contexts': [],
+                'semantic_summary': ''
+            },
+            'total_annotations': total_annotations
+        })
+
+    except RawDocument.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Document non trouvé'
+        }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+# ==================== 3. ENRICHIR LE JSON ====================
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@login_required
+def enrich_document_json(request, id):
+    """
+    POST /api/expert/documents/{id}/enrich-json/
+    Enrichit le JSON d'un document avec des relations sémantiques
+    """
+    try:
+        document = get_object_or_404(RawDocument, id=id)
+
+        # Vérifier l'accès
+        if not document.is_accessible_by(request.user):
+            return JsonResponse({
+                'success': False,
+                'error': 'Accès non autorisé'
+            }, status=403)
+
+        basic_json = document.global_annotations_json or {}
+
+        if not basic_json.get('entities'):
+            return JsonResponse({
+                'success': False,
+                'error': "Aucune entité trouvée. Veuillez d'abord générer le JSON de base."
+            }, status=400)
+
+        # Contexte du document
+        document_context = {
+            "doc_type": document.doc_type or '',
+            "country": document.country or '',
+            "language": document.language or '',
+            "source": document.source or '',
+            "title": document.title or '',
+            "total_pages": document.total_pages
+        }
+
+        document_summary = document.global_annotations_summary or ""
+
+        # Enrichir avec l'IA
+        enricher = JSONEnricher()
+        enriched = enricher.enrich_basic_json(
+            basic_json,
+            document_context,
+            document_summary=document_summary,
+            expert_relations=[],
+            use_ai=True
+        )
+
+        # Assurer les descriptions des relations
+        enriched = enricher.ensure_relation_descriptions(
+            enriched,
+            document_context=document_context,
+            document_summary=document_summary,
+            prefer_fluent_ai=True
+        )
+
+        # Sauvegarder
+        document.enriched_annotations_json = enriched
+        document.enriched_at = timezone.now()
+        document.enriched_by = request.user
+        document.save(update_fields=['enriched_annotations_json', 'enriched_at', 'enriched_by'])
+
+        # Logger l'action
+        try:
+            ExpertLog.objects.create(
+                expert=request.user,
+                document_id=document.id,
+                document_title=document.title or f'Document {document.id}',
+                action='document_reviewed',
+                reason='JSON enrichi automatiquement avec contexte sémantique'
+            )
+        except Exception:
+            pass
+
+        return JsonResponse({
+            'success': True,
+            'message': 'JSON enrichi avec succès',
+            'relations_count': len(enriched.get('relations', [])),
+            'qa_pairs_count': len(enriched.get('questions_answers', [])),
+            'contexts_count': len(enriched.get('contexts', {}))
+        })
+
+    except RawDocument.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Document non trouvé'
+        }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'Erreur lors de l\'enrichissement: {str(e)}'
+        }, status=500)
+
+
+# ==================== 4. SAUVEGARDER JSON ENRICHI ====================
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@login_required
+def save_enriched_json(request, id):
+    """
+    POST /api/expert/documents/{id}/save-enriched-json/
+    Sauvegarde les modifications manuelles du JSON enrichi
+    """
+    try:
+        document = get_object_or_404(RawDocument, id=id)
+
+        # Vérifier l'accès
+        if not document.is_accessible_by(request.user):
+            return JsonResponse({
+                'success': False,
+                'error': 'Accès non autorisé'
+            }, status=403)
+
+        data = json.loads(request.body)
+        enriched_json = data.get('enriched_json', {})
+
+        # Valider la structure
+        if not isinstance(enriched_json, dict):
+            return JsonResponse({
+                'success': False,
+                'error': 'Format JSON invalide'
+            }, status=400)
+
+        # Sauvegarder
+        document.enriched_annotations_json = enriched_json
+        document.enriched_at = timezone.now()
+        document.enriched_by = request.user
+        document.save(update_fields=['enriched_annotations_json', 'enriched_at', 'enriched_by'])
+
+        return JsonResponse({
+            'success': True,
+            'message': 'JSON enrichi sauvegardé avec succès'
+        })
+
+    except RawDocument.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Document non trouvé'
+        }, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'JSON invalide'
+        }, status=400)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+# ==================== 5. RÉGÉNÉRER JSON ====================
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@login_required
+def regenerate_json(request, id):
+    """
+    POST /api/expert/documents/{id}/regenerate-json/
+    Régénère le JSON enrichi à partir du JSON basique
+    """
+    try:
+        document = get_object_or_404(RawDocument, id=id)
+
+        # Vérifier l'accès
+        if not document.is_accessible_by(request.user):
+            return JsonResponse({
+                'success': False,
+                'error': 'Accès non autorisé'
+            }, status=403)
+
+        # Réinitialiser le JSON enrichi
+        document.enriched_annotations_json = None
+        document.save(update_fields=['enriched_annotations_json'])
+
+        return JsonResponse({
+            'success': True,
+            'message': 'JSON enrichi réinitialisé. Utilisez "Enrichir" pour le régénérer.'
+        })
+
+    except RawDocument.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Document non trouvé'
+        }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+# ==================== 6. JSON D'UNE PAGE SPÉCIFIQUE ====================
 
 @require_http_methods(["GET", "PUT"])
 @login_required
@@ -150,29 +520,29 @@ def get_page_json(request, id, page_number):
                 'success': False,
                 'error': 'Ce document n\'a pas encore de pages extraites. Veuillez d\'abord extraire les pages du PDF.'
             }, status=404)
-
+        
         page = get_object_or_404(document.pages, page_number=page_number)
 
         if request.method == 'GET':
             # Récupérer le JSON de la page
             annotations_json = page.annotations_json if hasattr(page, 'annotations_json') else {}
             summary = page.annotations_summary if hasattr(page, 'annotations_summary') else ''
-
+            
             # Si pas de JSON stocké, générer à partir des annotations
             if not annotations_json:
                 annotations = page.annotations.filter(is_validated=True).select_related('annotation_type')
                 entities_by_type = {}
-
+                
                 for ann in annotations:
                     type_display = ann.annotation_type.display_name if ann.annotation_type else 'Unknown'
                     if type_display not in entities_by_type:
                         entities_by_type[type_display] = []
-
+                    
                     # Ajouter uniquement le texte (pas de duplication)
                     text = ann.selected_text or ann.text or ''
                     if text and text not in entities_by_type[type_display]:
                         entities_by_type[type_display].append(text)
-
+                
                 annotations_json = {
                     'document': {
                         'id': str(document.id),

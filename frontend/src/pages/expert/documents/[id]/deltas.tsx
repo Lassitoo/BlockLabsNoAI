@@ -98,7 +98,7 @@ export default function ExpertDeltas() {
       if (response.ok) {
         const data = await response.json();
         alert(data.message || 'Régénération réussie !');
-        router.push(`/expert/documents/${id}/json`);
+        router.push(`/expert/documents/${id}/json-enriched`);
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -176,7 +176,7 @@ export default function ExpertDeltas() {
               <Button
                 variant="outline"
                 className="bg-white/20 border-white/30 text-white hover:bg-white/30"
-                onClick={() => router.push(`/expert/documents/${id}/json`)}
+                onClick={() => router.push(`/expert/documents/${id}/json-enriched`)}
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Retour au document

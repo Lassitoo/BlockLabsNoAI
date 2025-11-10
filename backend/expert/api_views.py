@@ -16,7 +16,9 @@ import json
 
 
 from rawdocs.models import RawDocument, DocumentPage, Annotation, AnnotationType, AnnotationRelationship
-from expert.models import ExpertLog, ExpertDelta
+from expert.models import ExpertLog, ExpertDelta, ChatMessage, ValidatedQA
+from expert.intelligent_qa_service import IntelligentQAService
+from expert.json_sync_service import JsonSyncService
 
 
 # ==================== DASHBOARD ====================
@@ -234,7 +236,7 @@ def get_document_review_data(request, doc_id):
                 page_preview = page_text[:100] + '...' if len(page_text) > 100 else page_text
 
                 pages_with_annotations[page_num] = {
-                    'page_id': annotation.page.id,  # Add the actual database ID
+                    'page_id': annotation.page.id,
                     'page_text_preview': page_preview,
                     'annotations': []
                 }
@@ -864,10 +866,22 @@ def validate_relationship(request, relationship_id):
             original_annotator=relationship.created_by.username if relationship.created_by else 'System'
         )
 
+        # 🔄 SYNCHRONISER AUTOMATIQUEMENT LE JSON ENRICHI
+        # Ajouter la relation validée au JSON pour que l'assistant Q&A puisse la retrouver
+        try:
+            sync_result = JsonSyncService.sync_single_relation(relationship, request.user)
+            sync_success = sync_result.get('success', False)
+        except Exception as e:
+            # Ne pas bloquer la validation si la sync échoue
+            import traceback
+            traceback.print_exc()
+            sync_success = False
+
         return JsonResponse({
             'success': True,
             'message': 'Relationship validated successfully',
-            'relationship_id': relationship_id
+            'relationship_id': relationship_id,
+            'json_synced': sync_success  # Indiquer si le JSON a été mis à jour
         })
 
     except AnnotationRelationship.DoesNotExist:
@@ -1063,6 +1077,497 @@ def delete_relationship(request, relationship_id):
         return JsonResponse({
             'success': False,
             'error': 'Relationship not found'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+# ==================== EXPERT CHAT (NO AI) ====================
+
+@csrf_exempt
+def chat_messages_handler(request, doc_id):
+    """
+    Gère GET et POST pour /api/expert/documents/{doc_id}/chat/
+    GET: Récupérer tous les messages
+    POST: Créer un nouveau message
+    """
+    if request.method == 'GET':
+        return get_chat_messages(request, doc_id)
+    elif request.method == 'POST':
+        return create_chat_message(request, doc_id)
+    else:
+        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
+
+
+@csrf_exempt
+def chat_message_handler(request, message_id):
+    """
+    Gère PUT et DELETE pour /api/expert/chat/{message_id}/
+    PUT: Modifier un message
+    DELETE: Supprimer un message
+    """
+    if request.method == 'PUT':
+        return update_chat_message(request, message_id)
+    elif request.method == 'DELETE':
+        return delete_chat_message(request, message_id)
+    else:
+        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
+
+
+def get_chat_messages(request, doc_id):
+    """
+    GET /api/expert/documents/{doc_id}/chat/
+    Récupère tous les messages de chat pour un document
+    """
+    try:
+        doc = RawDocument.objects.get(id=doc_id)
+
+        # Récupérer tous les messages du document
+        messages = ChatMessage.objects.filter(
+            document=doc
+        ).select_related('user', 'parent_message').order_by('created_at')
+
+        messages_data = []
+        for msg in messages:
+            messages_data.append({
+                'id': msg.id,
+                'user': {
+                    'id': msg.user.id,
+                    'username': msg.user.username
+                },
+                'message_type': msg.message_type,
+                'content': msg.content,
+                'json_path': msg.json_path,
+                'json_data': msg.json_data,
+                'is_resolved': msg.is_resolved,
+                'parent_message_id': msg.parent_message.id if msg.parent_message else None,
+                'tags': msg.tags,
+                'created_at': msg.created_at.isoformat(),
+                'updated_at': msg.updated_at.isoformat()
+            })
+
+        return JsonResponse({
+            'success': True,
+            'messages': messages_data,
+            'document_id': doc.id,
+            'document_title': doc.title or f'Document {doc.id}'
+        })
+
+    except RawDocument.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Document non trouvé'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+def create_chat_message(request, doc_id):
+    """
+    POST /api/expert/documents/{doc_id}/chat/
+    Crée un nouveau message de chat
+    Body: {
+        "message_type": "question|answer|correction|suggestion|note",
+        "content": "...",
+        "json_path": "...", (optional)
+        "json_data": {...}, (optional)
+        "parent_message_id": ..., (optional)
+        "tags": [...] (optional)
+    }
+    """
+    try:
+        doc = RawDocument.objects.get(id=doc_id)
+        data = json.loads(request.body)
+
+        # Validation
+        if not data.get('content'):
+            return JsonResponse({
+                'success': False,
+                'error': 'Le contenu du message est requis'
+            }, status=400)
+
+        message_type = data.get('message_type', 'question')
+        if message_type not in ['question', 'answer', 'correction', 'suggestion', 'note']:
+            return JsonResponse({
+                'success': False,
+                'error': 'Type de message invalide'
+            }, status=400)
+
+        # Créer le message
+        parent_message = None
+        if data.get('parent_message_id'):
+            try:
+                parent_message = ChatMessage.objects.get(id=data['parent_message_id'])
+            except ChatMessage.DoesNotExist:
+                pass
+
+        message = ChatMessage.objects.create(
+            document=doc,
+            user=request.user,
+            message_type=message_type,
+            content=data['content'],
+            json_path=data.get('json_path', ''),
+            json_data=data.get('json_data', {}),
+            parent_message=parent_message,
+            tags=data.get('tags', [])
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': {
+                'id': message.id,
+                'user': {
+                    'id': message.user.id,
+                    'username': message.user.username
+                },
+                'message_type': message.message_type,
+                'content': message.content,
+                'json_path': message.json_path,
+                'json_data': message.json_data,
+                'is_resolved': message.is_resolved,
+                'parent_message_id': message.parent_message.id if message.parent_message else None,
+                'tags': message.tags,
+                'created_at': message.created_at.isoformat(),
+                'updated_at': message.updated_at.isoformat()
+            }
+        })
+
+    except RawDocument.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Document non trouvé'
+        }, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'JSON invalide'
+        }, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+def update_chat_message(request, message_id):
+    """
+    PUT /api/expert/chat/{message_id}/
+    Modifie un message de chat (seulement si l'utilisateur est l'auteur)
+    Body: {
+        "content": "...",
+        "message_type": "...",
+        "json_path": "...",
+        "json_data": {...},
+        "tags": [...]
+    }
+    """
+    try:
+        # Vérifier l'authentification
+        if not request.user.is_authenticated:
+            return JsonResponse({
+                'success': False,
+                'error': 'Authentification requise'
+            }, status=401)
+
+        message = ChatMessage.objects.get(id=message_id)
+
+        # Vérifier que l'utilisateur est l'auteur
+        if message.user.id != request.user.id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Vous ne pouvez modifier que vos propres messages'
+            }, status=403)
+
+        data = json.loads(request.body)
+
+        # Mettre à jour les champs
+        if 'content' in data:
+            message.content = data['content']
+        if 'message_type' in data:
+            message.message_type = data['message_type']
+        if 'json_path' in data:
+            message.json_path = data['json_path']
+        if 'json_data' in data:
+            message.json_data = data['json_data']
+        if 'tags' in data:
+            message.tags = data['tags']
+
+        message.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': {
+                'id': message.id,
+                'user': {
+                    'id': message.user.id,
+                    'username': message.user.username
+                },
+                'message_type': message.message_type,
+                'content': message.content,
+                'json_path': message.json_path,
+                'json_data': message.json_data,
+                'is_resolved': message.is_resolved,
+                'parent_message_id': message.parent_message.id if message.parent_message else None,
+                'tags': message.tags,
+                'created_at': message.created_at.isoformat(),
+                'updated_at': message.updated_at.isoformat()
+            }
+        })
+
+    except ChatMessage.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Message non trouvé'
+        }, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'JSON invalide'
+        }, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+def delete_chat_message(request, message_id):
+    """
+    DELETE /api/expert/chat/{message_id}/
+    Supprime un message de chat (seulement si l'utilisateur est l'auteur)
+    """
+    try:
+        # Vérifier l'authentification
+        if not request.user.is_authenticated:
+            return JsonResponse({
+                'success': False,
+                'error': 'Authentification requise'
+            }, status=401)
+
+        message = ChatMessage.objects.get(id=message_id)
+
+        # Vérifier que l'utilisateur est l'auteur
+        if message.user.id != request.user.id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Vous ne pouvez supprimer que vos propres messages'
+            }, status=403)
+
+        message.delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Message supprimé avec succès'
+        })
+
+    except ChatMessage.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Message non trouvé'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+def search_in_json(request, doc_id):
+    """
+    POST /api/expert/documents/{doc_id}/search-json/
+    Recherche automatique dans le JSON du document (sans IA)
+    Body: {
+        "query": "dosage" ou "relation contains"
+    }
+    """
+    try:
+        doc = RawDocument.objects.get(id=doc_id)
+        data = json.loads(request.body)
+        query = data.get('query', '').lower().strip()
+
+        if not query:
+            return JsonResponse({
+                'success': False,
+                'error': 'Query is required'
+            }, status=400)
+
+        results = []
+
+        # 1. Recherche dans les annotations validées
+        annotations = Annotation.objects.filter(
+            page__document=doc,
+            is_validated=True
+        ).select_related('annotation_type')
+
+        for ann in annotations:
+            # Chercher dans le texte et le type
+            ann_text = ann.selected_text or ''
+            if query in ann_text.lower() or query in ann.annotation_type.name.lower():
+                results.append({
+                    'type': 'annotation',
+                    'entity_type': ann.annotation_type.name,
+                    'text': ann_text,
+                    'page': ann.page.page_number,
+                    'data': {
+                        'text': ann_text,
+                        'type': ann.annotation_type.name,
+                        'validated': ann.is_validated
+                    },
+                    'json_path': f'entities.{ann.annotation_type.name}',
+                    'relevance': 'high' if query in ann_text.lower() else 'medium'
+                })
+
+        # 2. Recherche dans les relations validées
+        relationships = AnnotationRelationship.objects.filter(
+            source_annotation__page__document=doc,
+            is_validated=True
+        ).select_related('source_annotation', 'target_annotation')
+
+        for rel in relationships:
+            source_text = rel.source_annotation.selected_text if rel.source_annotation else ''
+            target_text = rel.target_annotation.selected_text if rel.target_annotation else ''
+            rel_name = rel.relationship_name or ''
+            rel_text = f"{rel_name} {source_text} {target_text}".lower()
+            if query in rel_text:
+                results.append({
+                    'type': 'relation',
+                    'relation_type': rel_name,
+                    'source': source_text,
+                    'target': target_text,
+                    'confidence': 1.0,  # Pas de champ confidence dans ce modèle
+                    'json_path': f'relations.{rel_name}',
+                    'data': {
+                        'source': source_text,
+                        'target': target_text,
+                        'type': rel_name
+                    },
+                    'relevance': 'high' if query in rel_name.lower() else 'medium'
+                })
+
+        # 3. Recherche dans les données JSON brutes (optionnel)
+        try:
+            # Essayer d'obtenir le JSON du document
+            json_data = None
+            if hasattr(doc, 'expert_json_data'):
+                json_data = doc.expert_json_data
+            elif hasattr(doc, 'json_data'):
+                json_data = doc.json_data
+
+            if not json_data:
+                # Pas de JSON disponible, passer
+                pass
+            else:
+
+                # Chercher dans entities
+                if 'entities' in json_data:
+                    for entity_type, entities in json_data['entities'].items():
+                        if query in entity_type.lower():
+                            for idx, entity in enumerate(entities):
+                                results.append({
+                                    'type': 'entity',
+                                    'entity_type': entity_type,
+                                    'data': entity,
+                                    'json_path': f'entities.{entity_type}[{idx}]',
+                                    'relevance': 'medium'
+                                })
+                        else:
+                            # Chercher dans les valeurs
+                            for idx, entity in enumerate(entities):
+                                entity_str = json.dumps(entity).lower()
+                                if query in entity_str:
+                                    results.append({
+                                        'type': 'entity',
+                                        'entity_type': entity_type,
+                                        'data': entity,
+                                        'json_path': f'entities.{entity_type}[{idx}]',
+                                        'relevance': 'high'
+                                    })
+
+                # Chercher dans relations
+                if 'relations' in json_data:
+                    for relation_type, relations in json_data['relations'].items():
+                        if query in relation_type.lower():
+                            for idx, relation in enumerate(relations):
+                                results.append({
+                                    'type': 'relation_json',
+                                    'relation_type': relation_type,
+                                    'data': relation,
+                                    'json_path': f'relations.{relation_type}[{idx}]',
+                                    'relevance': 'medium'
+                                })
+        except Exception as e:
+            print(f"Error searching in JSON data: {e}")
+
+        # Trier par pertinence
+        results.sort(key=lambda x: (x['relevance'] == 'high', x['relevance'] == 'medium'), reverse=True)
+
+        return JsonResponse({
+            'success': True,
+            'query': query,
+            'results': results[:20],  # Limiter à 20 résultats
+            'total_found': len(results)
+        })
+
+    except RawDocument.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Document non trouvé'
+        }, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'JSON invalide'
+        }, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def toggle_message_resolved(request, message_id):
+    """
+    POST /api/expert/chat/{message_id}/resolve/
+    Marque un message comme résolu/non résolu
+    """
+    try:
+        message = ChatMessage.objects.get(id=message_id)
+
+        # Basculer le statut résolu
+        message.is_resolved = not message.is_resolved
+        message.save()
+
+        return JsonResponse({
+            'success': True,
+            'is_resolved': message.is_resolved,
+            'message': 'Statut mis à jour avec succès'
+        })
+
+    except ChatMessage.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Message non trouvé'
         }, status=404)
     except Exception as e:
         import traceback

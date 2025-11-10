@@ -260,3 +260,214 @@ class ExpertLearningStats(models.Model):
 
     class Meta:
         unique_together = ['expert', 'document_type', 'period_start']
+
+
+class ChatMessage(models.Model):
+    """
+    Messages de chat pour tester les relations et informations JSON
+    Chat sans IA - messages entre experts pour discussion et correction
+    """
+
+    MESSAGE_TYPES = [
+        ('question', 'Question'),
+        ('answer', 'Réponse'),
+        ('correction', 'Correction'),
+        ('suggestion', 'Suggestion'),
+        ('note', 'Note'),
+    ]
+
+    # Référence au document
+    document = models.ForeignKey(
+        'rawdocs.RawDocument',
+        on_delete=models.CASCADE,
+        related_name='chat_messages'
+    )
+
+    # Utilisateur et timing
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='chat_messages')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    # Type et contenu du message
+    message_type = models.CharField(max_length=20, choices=MESSAGE_TYPES, default='question')
+    content = models.TextField(help_text="Contenu du message")
+
+    # Référence JSON (optionnel)
+    json_path = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Chemin dans le JSON concerné (ex: annotations.entities.Product[0])"
+    )
+
+    # Données JSON associées
+    json_data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Extrait du JSON concerné par le message"
+    )
+
+    # Métadonnées
+    is_resolved = models.BooleanField(default=False)
+    parent_message = models.ForeignKey(
+        'self',
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name='replies'
+    )
+
+    # Tags pour faciliter la recherche
+    tags = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Tags pour catégoriser le message (relations, entities, qa, etc.)"
+    )
+
+    class Meta:
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['document', 'created_at']),
+            models.Index(fields=['user', 'created_at']),
+            models.Index(fields=['is_resolved']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.get_message_type_display()} - {self.created_at.strftime('%d/%m/%Y %H:%M')}"
+
+
+class ValidatedQA(models.Model):
+    """
+    Stocke les questions-réponses validées par les experts
+    Système d'apprentissage sans IA basé sur les corrections humaines
+    """
+
+    # Référence au document (optionnel - peut être global)
+    document = models.ForeignKey(
+        'rawdocs.RawDocument',
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name='validated_qa'
+    )
+
+    # Question normalisée (pour la recherche)
+    question = models.TextField(help_text="Question posée")
+    question_normalized = models.TextField(
+        help_text="Question normalisée (minuscules, sans accents, etc.)"
+    )
+
+    # Réponse validée
+    answer = models.TextField(help_text="Réponse validée par l'expert")
+
+    # Source de la réponse
+    SOURCE_TYPES = [
+        ('json_entity', 'Entité JSON'),
+        ('json_relation', 'Relation JSON'),
+        ('json_field', 'Champ JSON'),
+        ('expert_knowledge', 'Connaissance expert'),
+        ('computed', 'Calculé/Déduit'),
+    ]
+    source_type = models.CharField(max_length=50, choices=SOURCE_TYPES)
+
+    # Chemin JSON source (si applicable)
+    json_path = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Chemin dans le JSON (ex: entities.Product[0].appearance)"
+    )
+
+    # Données JSON source
+    json_data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Données JSON utilisées pour la réponse"
+    )
+
+    # Métadonnées de validation
+    validated_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='validated_qa'
+    )
+    validated_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    # Historique des corrections
+    correction_count = models.IntegerField(
+        default=0,
+        help_text="Nombre de fois que cette réponse a été corrigée"
+    )
+    previous_answers = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Historique des réponses précédentes"
+    )
+
+    # Statistiques d'utilisation
+    usage_count = models.IntegerField(
+        default=0,
+        help_text="Nombre de fois que cette Q&A a été utilisée"
+    )
+    last_used = models.DateTimeField(null=True, blank=True)
+
+    # Confiance (basée sur les validations)
+    confidence_score = models.FloatField(
+        default=1.0,
+        help_text="Score de confiance (0.0-1.0) basé sur les validations"
+    )
+
+    # Statut
+    is_active = models.BooleanField(default=True)
+    is_global = models.BooleanField(
+        default=False,
+        help_text="Si True, applicable à tous les documents"
+    )
+
+    # Tags pour catégorisation
+    tags = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Tags pour faciliter la recherche (appearance, composition, etc.)"
+    )
+
+    class Meta:
+        ordering = ['-confidence_score', '-usage_count', '-validated_at']
+        indexes = [
+            models.Index(fields=['question_normalized']),
+            models.Index(fields=['document', 'is_active']),
+            models.Index(fields=['is_global', 'is_active']),
+            models.Index(fields=['confidence_score', 'usage_count']),
+        ]
+
+    def __str__(self):
+        return f"Q: {self.question[:50]}... | A: {self.answer[:50]}..."
+
+    def mark_used(self):
+        """Marque cette Q&A comme utilisée"""
+        self.usage_count += 1
+        self.last_used = timezone.now()
+        self.save(update_fields=['usage_count', 'last_used'])
+
+    def add_correction(self, new_answer: str, corrected_by: User):
+        """Enregistre une correction de la réponse"""
+        # Sauvegarder l'ancienne réponse dans l'historique
+        if not isinstance(self.previous_answers, list):
+            self.previous_answers = []
+
+        self.previous_answers.append({
+            'answer': self.answer,
+            'corrected_at': timezone.now().isoformat(),
+            'corrected_by': corrected_by.username
+        })
+
+        # Mettre à jour la réponse
+        self.answer = new_answer
+        self.correction_count += 1
+        self.validated_by = corrected_by
+        self.validated_at = timezone.now()
+
+        # Ajuster le score de confiance (diminue avec les corrections)
+        self.confidence_score = max(0.5, 1.0 - (self.correction_count * 0.1))
+
+        self.save()

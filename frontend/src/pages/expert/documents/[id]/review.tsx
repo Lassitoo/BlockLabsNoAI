@@ -65,8 +65,8 @@ export default function ReviewAnnotations() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [rejectedRelationships, setRejectedRelationships] = useState<Set<number>>(new Set());
   const [editForm, setEditForm] = useState({
-    source_annotation_id: '',
-    target_annotation_id: '',
+    source_annotation_id: '',     
+    target_annotation_id: '', 
     relationship_name: '',
     description: ''
   });
@@ -88,11 +88,11 @@ useEffect(() => {
       setLoading(true);
       console.log('Fetching document with ID:', id);
       const response = await axios.get(`/expert/documents/${id}/review/`);
-
+      
       console.log('Full response:', response);
       console.log('Response data:', response.data);
       console.log('Response status:', response.status);
-
+      
       if (response.data && response.data.success) {
         // L'API retourne les données directement, pas dans un sous-objet
         const documentData = {
@@ -138,29 +138,22 @@ useEffect(() => {
 
   const fetchRelationships = async () => {
   if (!document) return;
-
+  
   try {
     const allRelationships: any[] = [];
-
-    // Iterate through pages and fetch relationships using the actual page_id
+    
+    // Fetch relationships for each page using page_id
     for (const [pageNum, pageData] of Object.entries(document.pages_with_annotations)) {
-      const pageId = (pageData as any).page_id;
-
-      if (!pageId) {
-        console.warn(`No page_id found for page ${pageNum}`);
-        continue;
-      }
-
       try {
-        const response = await axios.get(`/annotation/relationships/page/${pageId}/`);
+        const response = await axios.get(`/annotation/relationships/page/${pageData.page_id}/`);
         if (response.data.success) {
           allRelationships.push(...response.data.relationships);
         }
       } catch (error) {
-        console.error(`Error fetching relationships for page ${pageNum} (ID: ${pageId}):`, error);
+        console.error(`Error fetching relationships for page ${pageNum}:`, error);
       }
     }
-
+    
     setRelationships(allRelationships);
   } catch (error) {
     console.error('Error fetching relationships:', error);
@@ -238,7 +231,7 @@ const deleteRelationship = async (relationshipId: number) => {
   if (!confirm('Êtes-vous sûr de vouloir supprimer définitivement cette relation ?')) {
     return;
   }
-
+  
   try {
     await axios.delete(`/expert/relationships/${relationshipId}/delete/`);
     setRejectedRelationships(prev => {
@@ -256,7 +249,7 @@ const deleteRelationship = async (relationshipId: number) => {
 
 const saveEditedRelationship = async () => {
   if (!editingRelationship) return;
-
+  
   try {
     const response = await axios.put(`/expert/relationships/${editingRelationship.id}/update/`, {
       source_annotation_id: parseInt(editForm.source_annotation_id),
@@ -265,7 +258,7 @@ const saveEditedRelationship = async () => {
       description: editForm.description,
       validate: true
     });
-
+    
     setShowEditModal(false);
 setEditingRelationship(null);
 
@@ -452,7 +445,7 @@ showNotification('Relation modifiée et approuvée', 'success');
             </div>
           </div>
         </Card>
-
+        
         {/* Relationships Section */}
           {showRelationships && (
             <Card className="mb-6">
@@ -465,7 +458,7 @@ showNotification('Relation modifiée et approuvée', 'success');
                 </h2>
                 <p className="text-indigo-100 mt-1">Validez ou corrigez les relations entre annotations</p>
               </div>
-
+              
               <CardContent className="p-6">
                 {relationships.length === 0 ? (
                   <div className="text-center py-12">
@@ -756,7 +749,7 @@ showNotification('Relation modifiée et approuvée', 'success');
                     onChange={(e) => setEditForm({...editForm, source_annotation_id: e.target.value})}
                   >
                     <option value="">-- Sélectionner annotation source --</option>
-                    {document && Object.values(document.pages_with_annotations).flatMap((page: any) =>
+                    {document && Object.values(document.pages_with_annotations).flatMap((page: any) => 
                       page.annotations.map((ann: any) => (
                         <option key={ann.id} value={ann.id}>
                           [{ann.annotation_type.display_name}] {ann.selected_text.substring(0, 60)}{ann.selected_text.length > 60 ? '...' : ''}
@@ -775,7 +768,7 @@ showNotification('Relation modifiée et approuvée', 'success');
                     onChange={(e) => setEditForm({...editForm, target_annotation_id: e.target.value})}
                   >
                     <option value="">-- Sélectionner annotation cible --</option>
-                    {document && Object.values(document.pages_with_annotations).flatMap((page: any) =>
+                    {document && Object.values(document.pages_with_annotations).flatMap((page: any) => 
                       page.annotations.map((ann: any) => (
                         <option key={ann.id} value={ann.id}>
                           [{ann.annotation_type.display_name}] {ann.selected_text.substring(0, 60)}{ann.selected_text.length > 60 ? '...' : ''}

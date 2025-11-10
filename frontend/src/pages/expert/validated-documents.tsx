@@ -150,7 +150,7 @@ export default function ValidatedDocuments() {
   };
 
   const handleViewJson = (docId: number) => {
-    router.push(`/expert/documents/${docId}/json`);
+    router.push(`/expert/documents/${docId}/json-enriched`);
   };
 
   if (loading) {
