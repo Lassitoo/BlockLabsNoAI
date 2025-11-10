@@ -68,19 +68,19 @@ def get_document_json(request, id):
                 page__document=document,
                 is_validated=True
             ).select_related('annotation_type', 'page')
-            
+
             # Grouper les entités par type (seulement les textes, pas les détails)
             entities_by_type = {}
             for ann in all_annotations:
                 type_display = ann.annotation_type.display_name if ann.annotation_type else 'Unknown'
                 if type_display not in entities_by_type:
                     entities_by_type[type_display] = []
-                
+
                 # Ajouter uniquement le texte (pas de duplication)
                 text = ann.selected_text or ann.text or ''
                 if text and text not in entities_by_type[type_display]:
                     entities_by_type[type_display].append(text)
-            
+
             annotations_json = {
                 'document': {
                     'id': str(document.id),
@@ -150,29 +150,29 @@ def get_page_json(request, id, page_number):
                 'success': False,
                 'error': 'Ce document n\'a pas encore de pages extraites. Veuillez d\'abord extraire les pages du PDF.'
             }, status=404)
-        
+
         page = get_object_or_404(document.pages, page_number=page_number)
 
         if request.method == 'GET':
             # Récupérer le JSON de la page
             annotations_json = page.annotations_json if hasattr(page, 'annotations_json') else {}
             summary = page.annotations_summary if hasattr(page, 'annotations_summary') else ''
-            
+
             # Si pas de JSON stocké, générer à partir des annotations
             if not annotations_json:
                 annotations = page.annotations.filter(is_validated=True).select_related('annotation_type')
                 entities_by_type = {}
-                
+
                 for ann in annotations:
                     type_display = ann.annotation_type.display_name if ann.annotation_type else 'Unknown'
                     if type_display not in entities_by_type:
                         entities_by_type[type_display] = []
-                    
+
                     # Ajouter uniquement le texte (pas de duplication)
                     text = ann.selected_text or ann.text or ''
                     if text and text not in entities_by_type[type_display]:
                         entities_by_type[type_display].append(text)
-                
+
                 annotations_json = {
                     'document': {
                         'id': str(document.id),
