@@ -1065,9 +1065,11 @@ const handleDeleteRelationship = async (relationshipId: number) => {
             pageNumber={currentPage}
             totalPages={documentData.total_pages}
             annotations={currentPageData?.annotations || []}
+            allDocumentAnnotations={documentData.pages.flatMap(page => page.annotations)}
             annotationTypes={annotationTypes}
             onDeleteAnnotation={handleDeleteAnnotation}
             onRefresh={fetchDocument}
+            documentId={documentData.id}
           />
         </div>
 

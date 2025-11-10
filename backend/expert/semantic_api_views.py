@@ -23,7 +23,14 @@ def generate_complete_json(document):
     """Génère le JSON complet (entities, relations, validated_qa) pour un document"""
     total_pages = document.pages.count()
     annotations_json = document.global_annotations_json
-
+    
+    # S'assurer que annotations_json est un dict
+    if isinstance(annotations_json, str):
+        try:
+            annotations_json = json.loads(annotations_json)
+        except:
+            annotations_json = None
+    
     if not annotations_json or not annotations_json.get('entities'):
         all_annotations = Annotation.objects.filter(
             page__document=document, is_validated=True
@@ -164,7 +171,15 @@ def get_document_json(request, id):
         annotations_json = generate_complete_json(document)
 
         # Sauvegarder dans la DB pour que l'assistant puisse l'utiliser
-        if annotations_json != document.global_annotations_json:
+        # Comparer en tant que dict, pas string
+        current_json = document.global_annotations_json
+        if isinstance(current_json, str):
+            try:
+                current_json = json.loads(current_json)
+            except:
+                current_json = {}
+        
+        if annotations_json != current_json:
             document.global_annotations_json = annotations_json
             document.save(update_fields=['global_annotations_json'])
 

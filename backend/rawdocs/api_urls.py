@@ -86,4 +86,9 @@ urlpatterns = [
      path('annotation/relationships/page/<int:page_id>/', api_views.get_page_relationships, name='get_page_relationships'),
      path('annotation/relationships/delete/<int:relationship_id>/', api_views.delete_annotation_relationship, name='delete_annotation_relationship'),
 
+     # JSON Management for Annotations
+     path('annotation/document/<int:doc_id>/all-annotations/', api_views.get_all_document_annotations, name='get_all_document_annotations'),
+     path('annotation/page/<int:page_number>/save-json/', api_views.save_page_json, name='save_page_json'),
+     path('annotation/document/<int:doc_id>/save-json/', api_views.save_document_json, name='save_document_json'),
+
 ]

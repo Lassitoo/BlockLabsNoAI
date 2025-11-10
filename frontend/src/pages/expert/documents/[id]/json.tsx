@@ -97,9 +97,17 @@ export default function DocumentJsonViewer() {
     });
   };
 
-  const handleJsonChange = (newJson: Record<string, unknown>) => {
-    setJsonData(newJson);
-    setJsonModified(true);
+  const handleJsonChange = (newJsonString: string) => {
+    try {
+      const parsed = JSON.parse(newJsonString);
+      setJsonData(parsed);
+      setJsonString(newJsonString);
+      setJsonModified(true);
+    } catch (error) {
+      // Si le JSON n'est pas valide, on met à jour quand même la string pour permettre l'édition
+      setJsonString(newJsonString);
+      setJsonModified(true);
+    }
   };
 
   const handleSaveJson = async () => {
@@ -466,7 +474,7 @@ export default function DocumentJsonViewer() {
                     </Alert>
 
                     <JsonViewer
-                      value={jsonData}
+                      value={jsonString}
                       title="JSON Global du Document (Expert) - ÉDITABLE"
                       height="600px"
                       readOnly={false}

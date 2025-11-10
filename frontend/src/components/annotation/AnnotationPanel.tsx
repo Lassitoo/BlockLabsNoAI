@@ -27,27 +27,35 @@ interface AnnotationPanelProps {
   pageNumber: number;
   totalPages: number;
   annotations: Annotation[];
+  allDocumentAnnotations?: Annotation[];
   annotationTypes: Array<{ id: number; name: string; display_name: string; color: string }>;
   onDeleteAnnotation: (id: number) => void;
   onRefresh: () => void;
+  documentId: number;
 }
 
 export const AnnotationPanel = ({
   pageNumber,
   totalPages,
   annotations,
+  allDocumentAnnotations = [],
   annotationTypes,
   onDeleteAnnotation,
-  onRefresh
+  onRefresh,
+  documentId
 }: AnnotationPanelProps) => {
   const [viewMode, setViewMode] = useState<'simple' | 'json'>('simple');
   const [activeTab, setActiveTab] = useState<'page' | 'document'>('page');
   const [editingAnnotation, setEditingAnnotation] = useState<Annotation | null>(null);
   const [editedText, setEditedText] = useState('');
   const [editedTypeId, setEditedTypeId] = useState<string>('');
+  const [editedJson, setEditedJson] = useState('');
+  const [isJsonModified, setIsJsonModified] = useState(false);
+  const [savingJson, setSavingJson] = useState(false);
 
   // Grouper les annotations par type
-  const groupedEntities = annotations.reduce((acc, ann) => {
+  const currentAnnotations = activeTab === 'page' ? annotations : allDocumentAnnotations;
+  const groupedEntities = currentAnnotations.reduce((acc, ann) => {
     const typeDisplay = ann.type_display;
     if (!acc[typeDisplay]) {
       acc[typeDisplay] = [];
@@ -56,34 +64,122 @@ export const AnnotationPanel = ({
     return acc;
   }, {} as Record<string, string[]>);
 
-  // Générer le JSON
-  const pageJson = {
-    page: {
-      number: pageNumber,
-      annotations_count: annotations.length
-    },
-    entities: groupedEntities,
-    annotations: annotations.map(ann => ({
-      id: ann.id,
-      start_pos: ann.start_pos,
-      end_pos: ann.end_pos,
-      selected_text: ann.selected_text || ann.text,
-      type: ann.type,
-      type_display: ann.type_display,
-      color: ann.color,
-      confidence: ann.confidence,
-      reasoning: ann.reasoning || 'exact match',
-      is_validated: ann.is_validated,
-      mode: ann.mode,
-      start_xpath: ann.start_xpath,
-      end_xpath: ann.end_xpath
-    })),
-    generated_at: new Date().toISOString()
+  // Générer le JSON selon l'onglet actif
+  const generateJson = () => {
+    if (activeTab === 'page') {
+      return {
+        page: {
+          number: pageNumber,
+          annotations_count: annotations.length
+        },
+        entities: groupedEntities,
+        annotations: annotations.map(ann => ({
+          id: ann.id,
+          start_pos: ann.start_pos,
+          end_pos: ann.end_pos,
+          selected_text: ann.selected_text || ann.text,
+          type: ann.type,
+          type_display: ann.type_display,
+          color: ann.color,
+          confidence: ann.confidence,
+          reasoning: ann.reasoning || 'exact match',
+          is_validated: ann.is_validated,
+          mode: ann.mode,
+          start_xpath: ann.start_xpath,
+          end_xpath: ann.end_xpath
+        })),
+        generated_at: new Date().toISOString()
+      };
+    } else {
+      return {
+        document: {
+          id: documentId,
+          total_pages: totalPages,
+          total_annotations: allDocumentAnnotations.length
+        },
+        entities: groupedEntities,
+        annotations: allDocumentAnnotations.map(ann => ({
+          id: ann.id,
+          start_pos: ann.start_pos,
+          end_pos: ann.end_pos,
+          selected_text: ann.selected_text || ann.text,
+          type: ann.type,
+          type_display: ann.type_display,
+          color: ann.color,
+          confidence: ann.confidence,
+          reasoning: ann.reasoning || 'exact match',
+          is_validated: ann.is_validated,
+          mode: ann.mode,
+          start_xpath: ann.start_xpath,
+          end_xpath: ann.end_xpath
+        })),
+        generated_at: new Date().toISOString()
+      };
+    }
   };
 
+  const pageJson = generateJson();
+
+  // Initialiser le JSON édité uniquement quand on change d'onglet ou que les annotations changent
+  useEffect(() => {
+    if (!isJsonModified) {
+      setEditedJson(JSON.stringify(pageJson, null, 2));
+    }
+  }, [activeTab, annotations.length, allDocumentAnnotations.length]);
+
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(JSON.stringify(pageJson, null, 2));
+    const jsonToCopy = viewMode === 'json' && isJsonModified ? editedJson : JSON.stringify(pageJson, null, 2);
+    navigator.clipboard.writeText(jsonToCopy);
     alert('✅ JSON copié dans le presse-papier!');
+  };
+
+  const handleJsonChange = (value: string) => {
+    setEditedJson(value);
+    setIsJsonModified(true);
+  };
+
+  const handleSaveJson = async () => {
+    try {
+      // Valider le JSON
+      JSON.parse(editedJson);
+    } catch (error) {
+      alert('❌ JSON invalide. Veuillez corriger les erreurs.');
+      return;
+    }
+
+    setSavingJson(true);
+    try {
+      let response;
+      
+      if (activeTab === 'page') {
+        // Pour la page, on ne sauvegarde pas (ou on pourrait sauvegarder dans un champ spécifique)
+        alert('⚠️ La sauvegarde par page n\'est pas encore implémentée. Utilisez l\'onglet Document.');
+        setSavingJson(false);
+        return;
+      } else {
+        // Pour le document, utiliser l'endpoint expert existant
+        response = await axiosInstance.post(`/expert/documents/${documentId}/json/update/`, {
+          global_annotations_json: JSON.parse(editedJson)
+        });
+      }
+
+      if (response.data.success) {
+        alert('✅ JSON sauvegardé avec succès!');
+        setIsJsonModified(false);
+        onRefresh();
+      }
+    } catch (error: any) {
+      console.error('Error saving JSON:', error);
+      console.error('Error details:', error.response?.data);
+      alert(`❌ Erreur: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setSavingJson(false);
+    }
+  };
+
+  const handleResetJson = () => {
+    setEditedJson(JSON.stringify(pageJson, null, 2));
+    setIsJsonModified(false);
   };
 
   const handleDelete = async (annotationId: number) => {
@@ -194,26 +290,39 @@ export const AnnotationPanel = ({
           </Button>
         </div>
 
-        {/* Page Info */}
+        {/* Page/Document Info */}
         <div className="bg-green-500/10 p-3 rounded-lg mb-4 border-l-4 border-green-500">
-          <div className="text-sm font-semibold text-green-400">
-            Page {pageNumber} / {totalPages}
-          </div>
-          <div className="text-xs text-slate-400 mt-1">
-            {annotations.length} annotations
-          </div>
+          {activeTab === 'page' ? (
+            <>
+              <div className="text-sm font-semibold text-green-400">
+                Page {pageNumber} / {totalPages}
+              </div>
+              <div className="text-xs text-slate-400 mt-1">
+                {annotations.length} annotations
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-sm font-semibold text-green-400">
+                Document Complet
+              </div>
+              <div className="text-xs text-slate-400 mt-1">
+                {allDocumentAnnotations.length} annotations sur {totalPages} pages
+              </div>
+            </>
+          )}
         </div>
 
         {/* Content */}
         {viewMode === 'simple' ? (
           <div className="max-h-[calc(70vh-200px)] overflow-y-auto space-y-3">
-            {annotations.length === 0 ? (
+            {currentAnnotations.length === 0 ? (
               <div className="text-center py-12 text-slate-500">
                 <FileCode className="w-12 h-12 mx-auto mb-3 opacity-30" />
                 <p>Aucune annotation</p>
               </div>
             ) : (
-              annotations.map((ann) => (
+              currentAnnotations.map((ann) => (
                 <div
                   key={ann.id}
                   className="bg-slate-900 rounded-lg border border-slate-800 hover:border-slate-700 transition-all group p-4"
@@ -276,9 +385,33 @@ export const AnnotationPanel = ({
             )}
           </div>
         ) : (
-          <pre className="bg-slate-900 p-4 rounded-lg overflow-x-auto max-h-[calc(70vh-200px)] text-xs leading-relaxed text-slate-200 border border-slate-800">
-            {JSON.stringify(pageJson, null, 2)}
-          </pre>
+          <div className="space-y-3">
+            <textarea
+              value={editedJson}
+              onChange={(e) => handleJsonChange(e.target.value)}
+              className="bg-slate-900 p-4 rounded-lg overflow-auto min-h-[500px] max-h-[calc(100vh-400px)] text-xs leading-relaxed text-slate-200 border border-slate-800 w-full font-mono resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
+              spellCheck={false}
+            />
+            <div className="flex gap-2">
+              <Button
+                onClick={handleSaveJson}
+                disabled={savingJson}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                size="sm"
+              >
+                {savingJson ? 'Sauvegarde...' : '💾 Sauvegarder JSON'}
+              </Button>
+              <Button
+                onClick={handleResetJson}
+                variant="outline"
+                className="flex-1 border-slate-700 text-slate-300 hover:bg-slate-800"
+                size="sm"
+                disabled={!isJsonModified}
+              >
+                🔄 Réinitialiser
+              </Button>
+            </div>
+          </div>
         )}
       </CardContent>
 

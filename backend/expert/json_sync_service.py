@@ -409,7 +409,16 @@ class JsonSyncService:
 
         # Compter les relations dans le JSON
         global_json = document.global_annotations_json or {}
+        
+        # S'assurer que global_json est un dict
+        if isinstance(global_json, str):
+            try:
+                global_json = json.loads(global_json)
+            except:
+                global_json = {}
+        
         json_relations_count = len(global_json.get('relations', []))
+        total_entities = sum(len(entities) for entities in global_json.get('entities', {}).values()) if isinstance(global_json.get('entities'), dict) else 0
 
         # Déterminer si une synchronisation est nécessaire
         needs_sync = db_relations_count != json_relations_count
@@ -424,7 +433,8 @@ class JsonSyncService:
             'needs_sync': needs_sync,
             'last_synced': metadata.get('last_synced'),
             'synced_by': metadata.get('synced_by'),
-            'total_relations': metadata.get('total_relations', 0)
+            'total_relations': metadata.get('total_relations', 0),
+            'total_entities': total_entities
         }
 
     @staticmethod

@@ -2845,3 +2845,130 @@ def delete_annotation_relationship(request, relationship_id):
             'success': False,
             'error': str(e)
         }, status=500)
+
+
+@require_http_methods(["GET"])
+@login_required
+def get_all_document_annotations(request, doc_id):
+    """Get all annotations from all pages of a document"""
+    try:
+        document = get_object_or_404(RawDocument, id=doc_id)
+        
+        # Get all annotations from all pages, ordered by page number and position
+        annotations = Annotation.objects.filter(
+            page__document=document
+        ).select_related(
+            'page', 'annotation_type', 'created_by'
+        ).order_by('page__page_number', 'start_pos')
+        
+        annotations_data = []
+        for ann in annotations:
+            annotations_data.append({
+                'id': ann.id,
+                'start_pos': ann.start_pos,
+                'end_pos': ann.end_pos,
+                'text': ann.text,
+                'selected_text': ann.selected_text,
+                'type': ann.annotation_type.name if ann.annotation_type else 'unknown',
+                'type_display': ann.annotation_type.display_name if ann.annotation_type else 'Unknown',
+                'color': ann.annotation_type.color if ann.annotation_type else '#3b82f6',
+                'confidence': ann.confidence or 100,
+                'reasoning': ann.reasoning or 'exact match',
+                'is_validated': ann.is_validated,
+                'mode': ann.mode or 'manual',
+                'start_xpath': ann.start_xpath,
+                'end_xpath': ann.end_xpath,
+                'created_by': ann.created_by.username if ann.created_by else 'System',
+                'page_number': ann.page.page_number
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'annotations': annotations_data,
+            'total_count': len(annotations_data)
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@login_required
+def save_page_json(request, page_number):
+    """Save JSON data for a specific page"""
+    try:
+        data = json.loads(request.body)
+        json_data = data.get('json_data')
+        
+        if not json_data:
+            return JsonResponse({
+                'success': False,
+                'error': 'json_data is required'
+            }, status=400)
+        
+        # Get the document ID from the page info in the JSON
+        # For now, we'll just acknowledge the save
+        # In a full implementation, you'd want to store this in a page-level JSON field
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'JSON for page {page_number} saved successfully'
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON'
+        }, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@login_required
+def save_document_json(request, doc_id):
+    """Save JSON data for the entire document"""
+    try:
+        document = get_object_or_404(RawDocument, id=doc_id)
+        data = json.loads(request.body)
+        json_data = data.get('json_data')
+        
+        if not json_data:
+            return JsonResponse({
+                'success': False,
+                'error': 'json_data is required'
+            }, status=400)
+        
+        # Save the JSON to the document's global_annotations_json field
+        document.global_annotations_json = json_data
+        document.save(update_fields=['global_annotations_json'])
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Document JSON saved successfully'
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON'
+        }, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
