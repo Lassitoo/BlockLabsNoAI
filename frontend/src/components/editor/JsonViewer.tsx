@@ -51,6 +51,15 @@ export const JsonViewer = ({
     }
   };
 
+  const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
+    const textarea = e.currentTarget;
+    const highlightOverlay = textarea.previousElementSibling as HTMLElement;
+    if (highlightOverlay) {
+      highlightOverlay.scrollTop = textarea.scrollTop;
+      highlightOverlay.scrollLeft = textarea.scrollLeft;
+    }
+  };
+
   return (
     <div className="json-editor-card">
       <div className="json-editor-head">
@@ -66,13 +75,17 @@ export const JsonViewer = ({
           {readOnly ? (
             <pre className="json-content" dangerouslySetInnerHTML={{ __html: highlightedJson }} />
           ) : (
-            <textarea
-              value={jsonString}
-              onChange={handleChange}
-              className="json-textarea"
-              style={{ height: '100%', width: '100%' }}
-              spellCheck={false}
-            />
+            <div className="json-editor-wrapper">
+              <pre className="json-content json-highlight-overlay" dangerouslySetInnerHTML={{ __html: highlightedJson }} />
+              <textarea
+                value={jsonString}
+                onChange={handleChange}
+                onScroll={handleScroll}
+                className="json-textarea json-editable"
+                style={{ height: '100%', width: '100%' }}
+                spellCheck={false}
+              />
+            </div>
           )}
         </div>
         {showActions && (
@@ -160,39 +173,67 @@ export const JsonViewer = ({
         }
 
         .json-content :global(.json-key) {
-          color: #0451a5;
+          color: #2563eb;
           font-weight: 600;
         }
 
         .json-content :global(.json-string) {
-          color: #a31515;
+          color: #dc2626;
         }
 
         .json-content :global(.json-number) {
-          color: #098658;
+          color: #16a34a;
         }
 
         .json-content :global(.json-boolean) {
-          color: #0000ff;
+          color: #9333ea;
           font-weight: 600;
         }
 
         .json-content :global(.json-null) {
-          color: #0000ff;
+          color: #6b7280;
           font-weight: 600;
+        }
+
+        .json-editor-wrapper {
+          position: relative;
+          height: 100%;
+          width: 100%;
+        }
+
+        .json-highlight-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          pointer-events: none;
+          z-index: 1;
         }
 
         .json-textarea {
           margin: 0;
           padding: 1rem;
           font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
-          font-size: 13px;
-          line-height: 1.6;
+          font-size: 14px;
+          line-height: 1.8;
           color: #1f2937;
           background: #ffffff;
           border: none;
           outline: none;
           resize: none;
+        }
+
+        .json-editable {
+          position: relative;
+          z-index: 2;
+          color: transparent;
+          caret-color: #1f2937;
+          background: transparent;
+        }
+
+        .json-editable::selection {
+          background: rgba(37, 99, 235, 0.2);
         }
 
         .json-actions {
