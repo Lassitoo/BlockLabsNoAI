@@ -718,53 +718,62 @@ const handleDeleteRelationship = async (relationshipId: number) => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="outline" onClick={() => router.push('/annotation/dashboard')}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Dashboard
-            </Button>
-            <div>
-              <h1 className="text-3xl font-bold flex items-center gap-2">
-                <FileText className="w-8 h-8" />
-                Annotate Document
-              </h1>
-              <p className="text-muted-foreground mt-1">{documentData.title}</p>
+      <div className="space-y-6 max-w-[1800px] mx-auto">
+        {/* En-tête compact et moderne */}
+        <div className="space-y-3">
+          <Button 
+            variant="ghost" 
+            onClick={() => router.push('/annotation/dashboard')}
+            className="text-gray-600 hover:text-gray-900 -ml-2"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Retour
+          </Button>
+          
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-md">
+                  <FileText className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h1 className="text-xl font-bold text-gray-900 break-words line-clamp-2">
+                    {documentData.title}
+                  </h1>
+                  <p className="text-sm text-gray-500">Annotation du document</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="text-sm px-3 py-1">
+                Page {currentPage} / {documentData.total_pages}
+              </Badge>
+              {currentPageData?.is_validated_by_human && (
+                <Badge className="bg-green-100 text-green-800 border-green-200 px-3 py-1">
+                  <CheckCircle className="w-3 h-3 mr-1" />
+                  Validée
+                </Badge>
+              )}
+              <Button 
+                size="sm" 
+                onClick={handleValidatePage} 
+                disabled={validating || currentPageData?.is_validated_by_human} 
+                className="bg-green-600 hover:bg-green-700 text-white shadow-sm"
+              >
+                <CheckCircle className="w-4 h-4 mr-2" />
+                {validating ? 'Validation...' : 'Valider'}
+              </Button>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline">Page {currentPage} of {documentData.total_pages}</Badge>
-            {currentPageData?.is_validated_by_human && (
-              <Badge className="bg-green-100 text-green-800">
-                <CheckCircle className="w-3 h-3 mr-1" />
-                Validated
-              </Badge>
-            )}
-          </div>
         </div>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="space-y-4">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-medium">Types d'Annotation</label>
-                  {selectedAnnotationType && (
-                    <span className="text-xs text-green-600 font-medium">
-                      ✓ Sélectionnez du texte pour annoter automatiquement
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 mb-3 pb-3 border-b">
-                  <Button variant="outline" size="sm" onClick={() => setShowRelationshipModal(true)} className="bg-purple-50 border-purple-300 text-purple-700 hover:bg-purple-100">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Créer Relation
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => setShowRelationshipsList(!showRelationshipsList)} className="bg-indigo-50 border-indigo-300 text-indigo-700 hover:bg-indigo-100">
-                    <LinkIcon className="w-4 h-4 mr-2" />
-                    Relations ({relationships.length})
-                  </Button>
-                </div>
+        {/* Barre d'outils compacte */}
+        <Card className="border-gray-200 shadow-sm">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              {/* Types d'annotation */}
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Type :</span>
                 <div className="flex items-center gap-2 flex-wrap">
                   {annotationTypes.map((type) => (
                     <Button
@@ -772,41 +781,66 @@ const handleDeleteRelationship = async (relationshipId: number) => {
                       variant={selectedAnnotationType === type.id.toString() ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => setSelectedAnnotationType(type.id.toString())}
-                      className={selectedAnnotationType === type.id.toString() ? 'bg-blue-600' : ''}
+                      className={`transition-all ${
+                        selectedAnnotationType === type.id.toString() 
+                          ? 'bg-blue-600 hover:bg-blue-700 shadow-sm' 
+                          : 'hover:bg-gray-50'
+                      }`}
                     >
-                      <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: type.color }} />
+                      <div 
+                        className="w-2.5 h-2.5 rounded-full mr-2" 
+                        style={{ backgroundColor: type.color }} 
+                      />
                       {type.display_name}
                     </Button>
                   ))}
-                  <Button variant="outline" size="sm" onClick={() => setShowAddTypeModal(true)} className="border-dashed">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Ajouter Type
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setShowAddTypeModal(true)} 
+                    className="border-dashed"
+                  >
+                    <Plus className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-2 border-t">
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setShowAiAnnotations(!showAiAnnotations)}>
-                    {showAiAnnotations ? <Eye className="w-4 h-4 mr-2" /> : <EyeOff className="w-4 h-4 mr-2" />}
-                    {showAiAnnotations ? 'Hide' : 'Show'} AI
-                  </Button>
-
-                  {annotations.length > 0 && (
-                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                      {annotations.length} annotation{annotations.length > 1 ? 's' : ''}
-                    </Badge>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button size="sm" onClick={handleValidatePage} disabled={validating || currentPageData?.is_validated_by_human} className="bg-green-600 hover:bg-green-700">
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    {validating ? 'Validation...' : 'Validate Page'}
-                  </Button>
-                </div>
+              {/* Actions rapides */}
+              <div className="flex items-center gap-2">
+                {annotations.length > 0 && (
+                  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                    {annotations.length} annotation{annotations.length > 1 ? 's' : ''}
+                  </Badge>
+                )}
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setShowRelationshipModal(true)} 
+                  className="bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Relation
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setShowRelationshipsList(!showRelationshipsList)}
+                  className="bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100"
+                >
+                  <LinkIcon className="w-4 h-4 mr-1" />
+                  {relationships.length}
+                </Button>
               </div>
             </div>
+            
+            {selectedAnnotationType && (
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                <p className="text-xs text-green-600 font-medium flex items-center gap-1">
+                  <CheckCircle className="w-3 h-3" />
+                  Sélectionnez du texte dans le document pour annoter automatiquement
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -1022,38 +1056,51 @@ const handleDeleteRelationship = async (relationshipId: number) => {
           </div>
         )}
 
+        {/* Zone principale : Document + Annotations */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card className="shadow-xl border-gray-200">
-            <CardHeader className="bg-gradient-to-r from-gray-900 to-gray-800 text-white border-b">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <FileText className="w-5 h-5" />
-                Page {currentPage} / {documentData.total_pages}
+          {/* Visualiseur de document */}
+          <Card className="border-gray-200 shadow-md overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 px-4">
+              <CardTitle className="flex items-center justify-between text-base font-semibold">
+                <span className="flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Document
+                </span>
+                <Badge variant="secondary" className="bg-white/20 text-white border-white/30 text-xs">
+                  Page {currentPage}
+                </Badge>
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="h-[700px] overflow-y-auto p-4 bg-background">
-                {/* Inject CSS dynamically if available */}
+              <div className="h-[750px] overflow-y-auto bg-gray-50">
                 {structuredHtmlCss && (
                   <style dangerouslySetInnerHTML={{ __html: structuredHtmlCss }} />
                 )}
 
                 {loadingStructured ? (
                   <div className="flex items-center justify-center h-full">
-                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
-                    <span className="ml-3 text-gray-600">Chargement...</span>
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-10 w-10 border-4 border-gray-300 border-t-blue-600 mx-auto mb-3"></div>
+                      <span className="text-sm text-gray-600">Chargement...</span>
+                    </div>
                   </div>
                 ) : structuredHtml ? (
-                  <div
-                    className="pdf-document-container prose prose-sm max-w-none bg-white structured-html-view"
-                    dangerouslySetInnerHTML={{ __html: structuredHtml }}
-                    onMouseUp={handleTextSelection}
-                  />
+                  <div className="p-6 bg-white">
+                    <div
+                      className="pdf-document-container prose prose-sm max-w-none structured-html-view"
+                      dangerouslySetInnerHTML={{ __html: structuredHtml }}
+                      onMouseUp={handleTextSelection}
+                    />
+                  </div>
                 ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-center text-gray-500">
-                      <FileText className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                      <p className="mb-4">Aucun contenu pour cette page</p>
-                      <Button variant="outline" onClick={fetchStructuredHtml}>Recharger</Button>
+                  <div className="flex items-center justify-center h-full p-8">
+                    <div className="text-center">
+                      <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-sm text-gray-600 font-medium mb-2">Aucun contenu</p>
+                      <p className="text-xs text-gray-500 mb-4">Le contenu n'a pas pu être chargé</p>
+                      <Button variant="outline" size="sm" onClick={fetchStructuredHtml}>
+                        Recharger
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -1061,6 +1108,7 @@ const handleDeleteRelationship = async (relationshipId: number) => {
             </CardContent>
           </Card>
 
+          {/* Panneau des annotations */}
           <AnnotationPanel
             pageNumber={currentPage}
             totalPages={documentData.total_pages}
@@ -1073,14 +1121,21 @@ const handleDeleteRelationship = async (relationshipId: number) => {
           />
         </div>
 
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-center gap-2">
-              <Button variant="outline" onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage <= 1}>
-                Previous
+        {/* Navigation des pages */}
+        <Card className="border-gray-200 shadow-sm">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between gap-4">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => handlePageChange(currentPage - 1)} 
+                disabled={currentPage <= 1}
+                className="px-4"
+              >
+                ← Précédent
               </Button>
 
-              <div className="flex items-center gap-1 flex-wrap max-w-3xl">
+              <div className="flex items-center gap-1 flex-wrap justify-center flex-1">
                 {Array.from({ length: documentData.total_pages }, (_, i) => i + 1).map((pageNum) => {
                   const page = documentData.pages.find(p => p.page_number === pageNum);
                   const isCurrentPage = pageNum === currentPage;
@@ -1091,14 +1146,14 @@ const handleDeleteRelationship = async (relationshipId: number) => {
                       variant={isCurrentPage ? "default" : "outline"}
                       size="sm"
                       onClick={() => handlePageChange(pageNum)}
-                      className={`w-10 h-10 ${
+                      className={`min-w-[36px] h-9 text-sm font-medium transition-all ${
                         isCurrentPage 
-                          ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                          ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md scale-105' 
                           : page?.is_validated_by_human 
-                            ? 'bg-green-100 text-green-800 hover:bg-green-200' 
+                            ? 'bg-green-100 text-green-800 hover:bg-green-200 border-green-300' 
                             : page?.is_annotated 
-                              ? 'bg-blue-100 text-blue-800 hover:bg-blue-200' 
-                              : ''
+                              ? 'bg-blue-100 text-blue-800 hover:bg-blue-200 border-blue-300' 
+                              : 'hover:bg-gray-50'
                       }`}
                     >
                       {pageNum}
@@ -1107,29 +1162,72 @@ const handleDeleteRelationship = async (relationshipId: number) => {
                 })}
               </div>
 
-              <Button variant="outline" onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage >= documentData.total_pages}>
-                Next
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => handlePageChange(currentPage + 1)} 
+                disabled={currentPage >= documentData.total_pages}
+                className="px-4"
+              >
+                Suivant →
               </Button>
+            </div>
+            
+            {/* Légende */}
+            <div className="flex items-center justify-center gap-4 mt-3 pt-3 border-t border-gray-100">
+              <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                <div className="w-4 h-4 rounded bg-blue-600"></div>
+                <span>Actuelle</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                <div className="w-4 h-4 rounded bg-green-100 border border-green-300"></div>
+                <span>Validée</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                <div className="w-4 h-4 rounded bg-blue-100 border border-blue-300"></div>
+                <span>Annotée</span>
+              </div>
             </div>
           </CardContent>
         </Card>
 
+        {/* Métadonnées */}
         {documentData.metadata && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Document Metadata</CardTitle>
+          <Card className="border-gray-200 shadow-sm">
+            <CardHeader className="py-3 px-4 bg-gray-50 border-b">
+              <CardTitle className="text-base font-semibold text-gray-900">
+                Informations du document
+              </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div><span className="font-medium">Type:</span> {documentData.metadata.type}</div>
-                <div><span className="font-medium">Language:</span> {documentData.metadata.language}</div>
-                <div><span className="font-medium">Source:</span> {documentData.metadata.source}</div>
-                <div><span className="font-medium">Country:</span> {documentData.metadata.country}</div>
+            <CardContent className="p-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-gray-500 uppercase">Type</p>
+                  <p className="text-sm text-gray-900">{documentData.metadata.type}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-gray-500 uppercase">Langue</p>
+                  <p className="text-sm text-gray-900">{documentData.metadata.language}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-gray-500 uppercase">Source</p>
+                  <p className="text-sm text-gray-900">{documentData.metadata.source}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-gray-500 uppercase">Pays</p>
+                  <p className="text-sm text-gray-900">{documentData.metadata.country}</p>
+                </div>
                 {documentData.metadata.publication_date && (
-                  <div><span className="font-medium">Publication Date:</span> {documentData.metadata.publication_date}</div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-gray-500 uppercase">Date</p>
+                    <p className="text-sm text-gray-900">{documentData.metadata.publication_date}</p>
+                  </div>
                 )}
                 {documentData.metadata.version && (
-                  <div><span className="font-medium">Version:</span> {documentData.metadata.version}</div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-gray-500 uppercase">Version</p>
+                    <p className="text-sm text-gray-900">{documentData.metadata.version}</p>
+                  </div>
                 )}
               </div>
             </CardContent>

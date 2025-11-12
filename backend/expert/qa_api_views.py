@@ -17,6 +17,7 @@ from expert.models import ValidatedQA
 from expert.intelligent_qa_service import IntelligentQAService
 from expert.relationship_qa_service import RelationshipQAService
 from expert.json_sync_service import JsonSyncService
+from expert.ai_research_assistant import AIResearchAssistant
 
 
 # ==================== INTELLIGENT Q&A SYSTEM (SANS IA) ====================
@@ -79,9 +80,9 @@ def ask_question(request, doc_id):
                 context=context
             )
         else:
-            # Utiliser le service Q&A standard
-            qa_service = IntelligentQAService()
-            result = qa_service.ask_question(
+            # 🔥 NOUVEAU: Utiliser l'assistant IA pour des réponses avancées
+            ai_assistant = AIResearchAssistant()
+            result = ai_assistant.ask_question_with_ai(
                 question=question,
                 document=doc,
                 user=request.user if request.user.is_authenticated else None

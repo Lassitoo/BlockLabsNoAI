@@ -36,6 +36,7 @@ urlpatterns = [
     # Expert Chat (No AI)
     path('documents/<int:doc_id>/chat/', api_views.chat_messages_handler, name='chat_messages'),
     path('documents/<int:doc_id>/search-json/', api_views.search_in_json, name='search_in_json'),
+    path('documents/<int:doc_id>/update-json/', api_views.update_json_path, name='update_json_path'),
     path('chat/<int:message_id>/', api_views.chat_message_handler, name='chat_message'),
     path('chat/<int:message_id>/resolve/', api_views.toggle_message_resolved, name='toggle_message_resolved'),
 

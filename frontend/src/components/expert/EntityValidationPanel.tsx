@@ -16,6 +16,21 @@ import {
   Trash2
 } from 'lucide-react';
 
+interface Relation {
+  id: number;
+  type: string;
+  validated: boolean;
+  source: {
+    type: string;
+    value: string;
+  };
+  target: {
+    type: string;
+    value: string;
+  };
+  description?: string;
+}
+
 interface EntityValidationPanelProps {
   documentId: number;
   jsonData: Record<string, unknown> | null;
@@ -51,8 +66,8 @@ export default function EntityValidationPanel({
       }
     });
 
-    const relations = ((jsonData as Record<string, unknown>).relations as unknown[]) || [];
-    const validatedRelations = relations.filter((r: Record<string, unknown>) => r.validated).length;
+    const relations = ((jsonData as Record<string, unknown>).relations as Array<Record<string, unknown>>) || [];
+    const validatedRelations = relations.filter((r) => r.validated as boolean).length;
 
     setStats({
       totalEntities,
@@ -149,14 +164,13 @@ export default function EntityValidationPanel({
     );
   }
 
-  const entities = jsonData.entities || {};
-  const relations = jsonData.relations || [];
-  const validatedQA = jsonData.validated_qa || [];
+  const entities = (jsonData.entities as Record<string, unknown>) || {};
+  const relations = ((jsonData.relations as Array<Record<string, unknown>>) || []);
 
   return (
     <div className="space-y-4">
       {/* Statistiques */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-6 text-center">
             <div className="text-2xl font-bold text-green-600">
@@ -179,21 +193,11 @@ export default function EntityValidationPanel({
         </Card>
         <Card>
           <CardContent className="pt-6 text-center">
-            <div className="text-2xl font-bold text-purple-600">
-              {validatedQA.length}
-            </div>
-            <p className="text-sm text-muted-foreground mt-1">
-              Q&A Validées
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6 text-center">
             <div className="text-2xl font-bold text-orange-600">
               {Object.keys(entities).length}
             </div>
             <p className="text-sm text-muted-foreground mt-1">
-              Types d'Entités
+              Types d&apos;Entités
             </p>
           </CardContent>
         </Card>
@@ -217,15 +221,12 @@ export default function EntityValidationPanel({
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="entities" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="entities">
                 Entités ({stats.totalEntities})
               </TabsTrigger>
               <TabsTrigger value="relations">
                 Relations ({stats.totalRelations})
-              </TabsTrigger>
-              <TabsTrigger value="qa">
-                Q&A ({validatedQA.length})
               </TabsTrigger>
             </TabsList>
 
@@ -294,19 +295,21 @@ export default function EntityValidationPanel({
                       </AlertDescription>
                     </Alert>
                   ) : (
-                    relations.map((relation: any) => (
+                    relations.map((relation) => {
+                      const rel = relation as unknown as Relation;
+                      return (
                       <Card
-                        key={relation.id}
+                        key={rel.id}
                         className={`border-l-4 ${
-                          relation.validated ? 'border-l-green-500' : 'border-l-yellow-500'
+                          rel.validated ? 'border-l-green-500' : 'border-l-yellow-500'
                         }`}
                       >
                         <CardContent className="pt-6">
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-2">
-                                <Badge variant={relation.validated ? 'default' : 'secondary'}>
-                                  {relation.validated ? (
+                                <Badge variant={rel.validated ? 'default' : 'secondary'}>
+                                  {rel.validated ? (
                                     <>
                                       <CheckCircle2 className="w-3 h-3 mr-1" />
                                       Validée
@@ -318,36 +321,36 @@ export default function EntityValidationPanel({
                                     </>
                                   )}
                                 </Badge>
-                                <Badge variant="outline">{relation.type}</Badge>
+                                <Badge variant="outline">{rel.type}</Badge>
                               </div>
                               <div className="text-sm space-y-1">
                                 <div className="flex items-center gap-2">
                                   <span className="font-semibold text-blue-600">
-                                    {relation.source.type}:
+                                    {rel.source.type}:
                                   </span>
-                                  <span>{relation.source.value}</span>
+                                  <span>{rel.source.value}</span>
                                 </div>
                                 <div className="flex items-center gap-2 pl-4">
                                   <span className="text-muted-foreground">→</span>
                                   <span className="font-semibold text-green-600">
-                                    {relation.target.type}:
+                                    {rel.target.type}:
                                   </span>
-                                  <span>{relation.target.value}</span>
+                                  <span>{rel.target.value}</span>
                                 </div>
-                                {relation.description && (
+                                {rel.description && (
                                   <p className="text-muted-foreground italic pl-4">
-                                    {relation.description}
+                                    {rel.description}
                                   </p>
                                 )}
                               </div>
                             </div>
-                            {!relation.validated && (
+                            {!rel.validated && (
                               <Button
                                 size="sm"
-                                onClick={() => handleValidateRelation(relation.id)}
-                                disabled={validating === `relation:${relation.id}`}
+                                onClick={() => handleValidateRelation(rel.id)}
+                                disabled={validating === `relation:${rel.id}`}
                               >
-                                {validating === `relation:${relation.id}` ? (
+                                {validating === `relation:${rel.id}` ? (
                                   <RefreshCw className="w-4 h-4 animate-spin" />
                                 ) : (
                                   <>
@@ -360,57 +363,8 @@ export default function EntityValidationPanel({
                           </div>
                         </CardContent>
                       </Card>
-                    ))
-                  )}
-                </div>
-              </ScrollArea>
-            </TabsContent>
-
-            {/* Onglet Q&A */}
-            <TabsContent value="qa">
-              <ScrollArea className="h-[500px]">
-                <div className="space-y-3">
-                  {validatedQA.length === 0 ? (
-                    <Alert>
-                      <AlertDescription>
-                        Aucune Q&A validée pour ce document.
-                        Utilisez l&apos;assistant pour valider des réponses.
-                      </AlertDescription>
-                    </Alert>
-                  ) : (
-                    validatedQA.map((qa: Record<string, unknown>) => (
-                      <Card key={qa.id} className="border-l-4 border-l-purple-500">
-                        <CardContent className="pt-6">
-                          <div className="space-y-2">
-                            <div>
-                              <Badge variant="outline" className="mb-2">
-                                Question #{qa.id}
-                              </Badge>
-                              <p className="font-semibold text-blue-600">
-                                {qa.question}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-sm text-muted-foreground mb-1">Réponse :</p>
-                              <p className="font-medium">{qa.answer}</p>
-                            </div>
-                            <div className="flex gap-2 text-xs text-muted-foreground">
-                              <Badge variant="secondary">
-                                Confiance: {Math.round(qa.confidence * 100)}%
-                              </Badge>
-                              <Badge variant="secondary">
-                                Utilisée: {qa.usage_count} fois
-                              </Badge>
-                              {qa.correction_count > 0 && (
-                                <Badge variant="destructive">
-                                  Corrigée: {qa.correction_count} fois
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </ScrollArea>

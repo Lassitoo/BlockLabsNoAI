@@ -2,7 +2,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FileText, Clock, CheckCircle, Play, Eye, Trash2, CheckSquare, TrendingUp, Activity, Sparkles } from 'lucide-react';
+import { FileText, Clock, CheckCircle, Play, Eye, Trash2, CheckSquare, TrendingUp, Activity, Sparkles, Upload, ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
@@ -28,6 +28,20 @@ interface DashboardStats {
   in_progress_count: number;
   completed_count: number;
   avg_annotated_pages_per_doc: number;
+}
+
+// Typed API helpers
+interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  error?: string;
+}
+interface DashboardStatsPayload { stats: DashboardStats }
+interface DocumentsPayload { documents: Document[] }
+
+// Fallback type guard for Axios errors for older Axios types
+function isAxiosError(error: unknown): error is { response?: { data?: unknown }; message: string } {
+  return typeof error === 'object' && error !== null && 'message' in error;
 }
 
 const AnnotationDashboard = () => {
@@ -77,7 +91,7 @@ const AnnotationDashboard = () => {
 
       // Fetch stats
       console.log("📊 Fetching stats...");
-      const statsResponse = await api.get('/annotation/dashboard/');
+      const statsResponse = await api.get<ApiResponse<DashboardStatsPayload>>('/annotation/dashboard/');
       console.log("📊 Stats response:", statsResponse.data);
 
       if (statsResponse.data.success) {
@@ -89,7 +103,7 @@ const AnnotationDashboard = () => {
 
       // Fetch documents
       console.log("📄 Fetching documents...");
-      const docsResponse = await api.get('/annotation/documents/');
+      const docsResponse = await api.get<ApiResponse<DocumentsPayload>>('/annotation/documents/');
       console.log("📄 Documents response:", docsResponse.data);
 
       if (docsResponse.data.success) {
@@ -100,7 +114,13 @@ const AnnotationDashboard = () => {
       }
     } catch (error) {
       console.error('❌ Error in fetchDashboardData:', error);
-      console.error('❌ Error details:', error.response?.data || error.message);
+      if (isAxiosError(error)) {
+        // we narrowed it; attempt structured output
+        // @ts-expect-error optional chaining if response shape unknown
+        console.error('❌ Error details:', error.response?.data || error.message);
+      } else {
+        console.error('❌ Error details:', (error as Error).message);
+      }
     } finally {
       console.log("🏁 Setting loading to false");
       setLoading(false);
@@ -110,7 +130,7 @@ const AnnotationDashboard = () => {
   const handleValidateDocument = async (docId: number) => {
     try {
       console.log(`🔍 Validating document ${docId}...`);
-      const response = await api.post(`/validate/${docId}/`);
+      const response = await api.post<ApiResponse<null>>(`/validate/${docId}/`);
 
       if (response.data.success) {
         console.log("✅ Document validated successfully");
@@ -121,6 +141,10 @@ const AnnotationDashboard = () => {
       }
     } catch (error) {
       console.error('❌ Error validating document:', error);
+      if (isAxiosError(error)) {
+        // @ts-expect-error response maybe undefined
+        console.error('❌ Error details:', error.response?.data || error.message);
+      }
       alert('Erreur lors de la validation du document');
     }
   };
@@ -132,7 +156,7 @@ const AnnotationDashboard = () => {
 
     try {
       console.log(`🗑️ Deleting document ${docId}...`);
-      const response = await api.delete(`/delete/${docId}/`);
+      const response = await api.delete<ApiResponse<null>>(`/delete/${docId}/`);
 
       if (response.data.success) {
         console.log("✅ Document deleted successfully");
@@ -143,6 +167,10 @@ const AnnotationDashboard = () => {
       }
     } catch (error) {
       console.error('❌ Error deleting document:', error);
+      if (isAxiosError(error)) {
+        // @ts-expect-error response maybe undefined
+        console.error('❌ Error details:', error.response?.data || error.message);
+      }
       alert('Erreur lors de la suppression du document');
     }
   };
@@ -189,238 +217,213 @@ const AnnotationDashboard = () => {
     <DashboardLayout>
       <div className="space-y-8">
         {/* Header Section */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-teal-600 bg-clip-text text-transparent">
-              Annotation Dashboard
-            </h1>
-            <p className="text-muted-foreground mt-2 text-lg flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-green-600" />
-              Review and annotate documents for processing
-            </p>
-          </div>
-          <Button 
-            onClick={() => router.push('/document-manager/upload')} 
-            size="lg"
-            className="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 shadow-lg hover:shadow-xl transition-all"
+        <div className="space-y-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push('/document-manager')}
+            className="text-muted-foreground hover:text-foreground -ml-2"
           >
-            <FileText className="w-4 h-4 mr-2" />
-            New Document
+            <ArrowLeft className="w-4 h-4 mr-1" />
+            Retour
           </Button>
+          
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-semibold">
+                Annotation Dashboard
+              </h1>
+              <p className="text-muted-foreground mt-2">
+                Review and annotate documents for processing
+              </p>
+            </div>
+            <Button 
+              onClick={() => router.push('/document-manager/upload')} 
+              size="sm"
+              className="rounded-md px-4 bg-slate-900 text-white hover:bg-slate-800 shadow-sm"
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              Upload Document
+            </Button>
+          </div>
         </div>
 
         {/* Stats Cards */}
         {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <div className="space-y-1">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Total Documents
-                  </CardTitle>
-                  <p className="text-xs text-muted-foreground">All documents</p>
-                </div>
-                <div className="p-3 rounded-xl bg-blue-50">
-                  <FileText className="w-6 h-6 text-blue-600" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-4xl font-bold">{stats.total_documents}</div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <div className="space-y-1">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    To Annotate
-                  </CardTitle>
-                  <p className="text-xs text-muted-foreground">Pending work</p>
-                </div>
-                <div className="p-3 rounded-xl bg-amber-50">
-                  <Clock className="w-6 h-6 text-amber-600" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-end justify-between">
-                  <div className="text-4xl font-bold">{stats.to_annotate_count}</div>
-                  <div className="flex items-center gap-1 text-amber-600 text-sm font-medium">
-                    <Activity className="w-4 h-4" />
-                    Active
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Total Documents
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">Documents uploaded</p>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-blue-50">
+                    <FileText className="w-5 h-5 text-blue-600" />
                   </div>
                 </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-semibold">{stats.total_documents}</div>
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <div className="space-y-1">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    In Progress
-                  </CardTitle>
-                  <p className="text-xs text-muted-foreground">Currently working</p>
-                </div>
-                <div className="p-3 rounded-xl bg-cyan-50">
-                  <Play className="w-6 h-6 text-cyan-600" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-end justify-between">
-                  <div className="text-4xl font-bold">{stats.in_progress_count}</div>
-                  <div className="flex items-center gap-1 text-cyan-600 text-sm font-medium">
-                    <Activity className="w-4 h-4 animate-pulse" />
-                    Live
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Pending Review
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">Awaiting validation</p>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-amber-50">
+                    <Clock className="w-5 h-5 text-amber-600" />
                   </div>
                 </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-semibold">{stats.to_annotate_count}</div>
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <div className="space-y-1">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Completed
-                  </CardTitle>
-                  <p className="text-xs text-muted-foreground">Finished work</p>
-                </div>
-                <div className="p-3 rounded-xl bg-green-50">
-                  <CheckCircle className="w-6 h-6 text-green-600" />
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Validated
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">Ready for annotation</p>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-green-50">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-4xl font-bold">{stats.completed_count}</div>
+                <div className="text-3xl font-semibold">{stats.completed_count}</div>
               </CardContent>
             </Card>
           </div>
         )}
 
         {/* Documents List */}
-        <Card className="border-0 shadow-lg">
-          <CardHeader className="bg-gradient-to-r from-green-50 to-teal-50 border-b">
+        <Card>
+          <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-xl">Documents for Annotation</CardTitle>
-                <CardDescription className="mt-1">
-                  Documents ready for annotation and review
+                <CardTitle className="text-base font-semibold">Documents</CardTitle>
+                <CardDescription className="text-xs mt-0.5">
+                  Your recently uploaded documents
                 </CardDescription>
               </div>
-              <Activity className="w-5 h-5 text-green-600" />
             </div>
           </CardHeader>
-          <CardContent className="pt-6">
+          <CardContent className="pt-0">
             {documents.length === 0 ? (
               <div className="text-center py-12">
-                <FileText className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                <p className="text-lg font-medium text-muted-foreground mb-2">
+                <div className="p-3 rounded-lg bg-blue-50 w-fit mx-auto mb-3">
+                  <FileText className="w-12 h-12 text-blue-500" />
+                </div>
+                <p className="font-medium mb-1">
                   No documents available
                 </p>
                 <p className="text-sm text-muted-foreground mb-4">
                   Upload and validate documents to start annotating
                 </p>
                 <Button
+                  variant="outline"
                   onClick={() => router.push('/document-manager/upload')}
-                  className="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700"
+                  size="sm"
                 >
                   <FileText className="w-4 h-4 mr-2" />
                   Upload First Document
                 </Button>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-0 divide-y">
                 {documents.map((doc) => {
                   const StatusIcon = getStatusIcon(doc.status);
                   return (
                     <div
                       key={doc.id}
-                      className="flex items-center justify-between p-5 rounded-xl border-2 hover:border-green-200 hover:bg-green-50/50 transition-all duration-200 group"
+                      className="flex items-center justify-between py-3.5 px-2 hover:bg-muted/30 transition-colors"
                     >
-                      <div className="flex items-center gap-4 flex-1">
-                        <div className="p-3 rounded-lg bg-green-50 group-hover:bg-green-100 transition-colors">
-                          <FileText className="w-7 h-7 text-green-600" />
+                      <div className="flex items-center gap-3 flex-1">
+                        <div className="p-2 rounded-lg bg-blue-50">
+                          <FileText className="w-4 h-4 text-blue-500" />
                         </div>
                         <div className="flex-1">
-                          <h3 className="font-semibold text-lg text-gray-900 group-hover:text-green-600 transition-colors">
+                          <h3 className="font-medium text-sm">
                             {doc.title}
                           </h3>
-                          <p className="text-sm text-muted-foreground">{doc.file_name}</p>
-                          <div className="flex items-center gap-4 mt-2">
-                            <span className="text-xs text-muted-foreground flex items-center gap-1">
-                              <FileText className="w-3 h-3" />
-                              Pages: {doc.annotated_pages}/{doc.total_pages}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              By: {doc.uploaded_by}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(doc.created_at).toLocaleDateString('fr-FR', { 
-                                day: 'numeric', 
-                                month: 'long', 
-                                year: 'numeric' 
-                              })}
-                            </span>
-                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(doc.created_at).toLocaleDateString('fr-FR', { 
+                              day: 'numeric', 
+                              month: 'short', 
+                              year: 'numeric' 
+                            })}
+                          </p>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-4">
-                        {/* Progress Bar */}
-                        <div className="w-32">
-                          <div className="text-xs font-medium text-gray-700 mb-1.5">
-                            {doc.progress_percentage}%
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2.5">
-                            <div
-                              className="bg-gradient-to-r from-green-500 to-teal-500 h-2.5 rounded-full transition-all"
-                              style={{ width: `${doc.progress_percentage}%` }}
-                            />
-                          </div>
-                        </div>
-
+                      <div className="flex items-center gap-3">
                         {/* Status Badge */}
-                        <Badge className={`${getStatusColor(doc.status)} px-3 py-1.5`}>
-                          <StatusIcon className="w-3 h-3 mr-1" />
-                          {doc.status.replace('_', ' ')}
+                        <Badge 
+                          variant="secondary" 
+                          className={`${
+                            doc.status === 'completed' ? 'bg-green-50 text-green-700 border-green-200' :
+                            doc.status === 'in_progress' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                            doc.status === 'validated' ? 'bg-green-50 text-green-700 border-green-200' :
+                            'bg-amber-50 text-amber-700 border-amber-200'
+                          } text-xs px-2.5 py-0.5 min-w-[80px] justify-center`}
+                        >
+                          {doc.status === 'to_annotate' ? 'Pending' : 
+                           doc.status === 'in_progress' ? 'In Progress' :
+                           doc.status === 'completed' ? 'Completed' : 
+                           'Validated'}
                         </Badge>
 
                         {/* Action Buttons */}
-                        <div className="flex gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => router.push(`/annotation/view/${doc.id}`)}
-                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-100"
-                          >
-                            <Eye className="w-4 h-4 mr-1" />
-                            View
-                          </Button>
+                        <div className="flex gap-1">
                           {doc.status !== 'completed' && (
                             <Button
-                              size="sm"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
                               onClick={() => router.push(`/annotation/document/${doc.id}/annotate`)}
-                              className="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700"
                             >
-                              <Play className="w-4 h-4 mr-1" />
-                              Annotate
+                              <Play className="w-4 h-4 text-blue-500" />
                             </Button>
                           )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => router.push(`/annotation/view/${doc.id}`)}
+                          >
+                            <Eye className="w-4 h-4 text-blue-500" />
+                          </Button>
                           {doc.status !== 'validated' && (
                             <Button
                               variant="ghost"
-                              size="sm"
+                              size="icon"
+                              className="h-8 w-8"
                               onClick={() => handleValidateDocument(doc.id)}
-                              className="text-green-600 hover:text-green-700 hover:bg-green-100"
                             >
-                              <CheckSquare className="w-4 h-4 mr-1" />
-                              Validate
+                              <CheckSquare className="w-4 h-4 text-green-500" />
                             </Button>
                           )}
                           <Button
                             variant="ghost"
-                            size="sm"
+                            size="icon"
+                            className="h-8 w-8"
                             onClick={() => handleDeleteDocument(doc.id)}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-100"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4 text-red-500" />
                           </Button>
                         </div>
                       </div>

@@ -1576,3 +1576,86 @@ def toggle_message_resolved(request, message_id):
             'success': False,
             'error': str(e)
         }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def update_json_path(request, doc_id):
+    """
+    POST /api/expert/documents/{doc_id}/update-json/
+    Met à jour une partie spécifique du JSON du document
+    Body: {
+        "json_path": "entities.dosage",
+        "json_data": { "dosage": ["5 mg", "92 mg", ...] }
+    }
+    """
+    try:
+        doc = RawDocument.objects.get(id=doc_id)
+        data = json.loads(request.body)
+
+        json_path = data.get('json_path', '').strip()
+        json_data = data.get('json_data')
+
+        if not json_path:
+            return JsonResponse({
+                'success': False,
+                'error': 'json_path est requis'
+            }, status=400)
+
+        if json_data is None:
+            return JsonResponse({
+                'success': False,
+                'error': 'json_data est requis'
+            }, status=400)
+
+        # Charger le JSON global actuel
+        current_json = doc.global_annotations_json or {}
+        if isinstance(current_json, str):
+            current_json = json.loads(current_json)
+
+        # Parser le chemin (ex: "entities.dosage" -> ["entities", "dosage"])
+        path_parts = json_path.split('.')
+
+        # Naviguer et mettre à jour le JSON
+        target = current_json
+        for i, part in enumerate(path_parts[:-1]):
+            if part not in target:
+                target[part] = {}
+            target = target[part]
+
+        # Mettre à jour la dernière clé avec les nouvelles données
+        last_key = path_parts[-1]
+        if isinstance(json_data, dict):
+            # Si json_data est un dict, extraire la valeur pour last_key si elle existe
+            target[last_key] = json_data.get(last_key, json_data)
+        else:
+            # Si json_data est une liste ou autre, l'assigner directement
+            target[last_key] = json_data
+
+        # Sauvegarder le JSON mis à jour
+        doc.global_annotations_json = current_json
+        doc.save(update_fields=['global_annotations_json'])
+
+        return JsonResponse({
+            'success': True,
+            'message': f'JSON mis à jour avec succès pour le chemin: {json_path}',
+            'updated_data': target[last_key]
+        })
+
+    except RawDocument.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Document non trouvé'
+        }, status=404)
+    except json.JSONDecodeError as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'JSON invalide: {str(e)}'
+        }, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Erreur lors de la mise à jour: {str(e)}'
+        }, status=500)

@@ -23,12 +23,29 @@ import {
   MessageSquare
 } from 'lucide-react';
 
+interface DocumentPage {
+  id: number;
+  page_number: number;
+  annotation_count: number;
+}
+
+interface DocumentData {
+  title: string;
+  pages?: DocumentPage[];
+}
+
+interface EnrichedJsonStatus {
+  is_synced: boolean;
+  total_entities: number;
+  db_relations_count: number;
+}
+
 export default function DocumentJsonViewer() {
   const router = useRouter();
   const { id } = router.query;
 
-  const [document, setDocument] = useState<any>(null);
-  const [jsonData, setJsonData] = useState<any>(null);
+  const [document, setDocument] = useState<DocumentData | null>(null);
+  const [jsonData, setJsonData] = useState<Record<string, unknown> | null>(null);
   const [jsonString, setJsonString] = useState<string>('');
   const [summary, setSummary] = useState<string>('');
   const [stats, setStats] = useState({
@@ -40,7 +57,7 @@ export default function DocumentJsonViewer() {
   const [loading, setLoading] = useState(true);
   const [copySuccess, setCopySuccess] = useState(false);
   const [initializingEnrichedJson, setInitializingEnrichedJson] = useState(false);
-  const [enrichedJsonStatus, setEnrichedJsonStatus] = useState<Record<string, unknown> | null>(null);
+  const [enrichedJsonStatus, setEnrichedJsonStatus] = useState<EnrichedJsonStatus | null>(null);
   const [jsonModified, setJsonModified] = useState(false);
   const [savingJson, setSavingJson] = useState(false);
 
@@ -139,9 +156,9 @@ export default function DocumentJsonViewer() {
 
       // Recharger pour voir les changements
       await fetchDocumentJson();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Erreur:', error);
-      alert('❌ Erreur lors de la sauvegarde: ' + error.message);
+      alert('❌ Erreur lors de la sauvegarde: ' + (error instanceof Error ? error.message : String(error)));
     } finally {
       setSavingJson(false);
     }
@@ -150,7 +167,7 @@ export default function DocumentJsonViewer() {
   const handleDownloadJson = () => {
     const blob = new Blob([jsonString], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = window.document.createElement('a');
     a.href = url;
     a.download = `${document?.title || 'document'}_annotations_expert.json`;
     a.click();
@@ -392,10 +409,10 @@ export default function DocumentJsonViewer() {
                     JSON enrichi initialisé
                   </span>
                   <Badge variant="outline" className="bg-blue-100 text-blue-700">
-                    {enrichedJsonStatus.total_entities} entités
+                    {String(enrichedJsonStatus.total_entities)} entités
                   </Badge>
                   <Badge variant="outline" className="bg-blue-100 text-blue-700">
-                    {enrichedJsonStatus.db_relations_count} relations
+                    {String(enrichedJsonStatus.db_relations_count)} relations
                   </Badge>
                   {!enrichedJsonStatus.is_synced && (
                     <Badge variant="destructive" className="ml-2">
@@ -453,7 +470,7 @@ export default function DocumentJsonViewer() {
               <TabsContent value="validation">
                 <Alert className="mb-4">
                   <AlertDescription>
-                    Validez et gérez les entités, relations et Q&A du document.
+                    Validez et gérez les entités et relations du document.
                     Toutes les modifications sont automatiquement synchronisées dans le JSON.
                   </AlertDescription>
                 </Alert>
@@ -511,7 +528,7 @@ export default function DocumentJsonViewer() {
                       </Alert>
                     )}
 
-                    <div className="flex gap-3 mt-4" style={{ display: 'none' }}>
+                    <div className="flex gap-3 mt-4">
                       <Button
                         variant="outline"
                         onClick={handleCopyJson}
@@ -551,33 +568,12 @@ export default function DocumentJsonViewer() {
               </TabsContent>
 
               <TabsContent value="chat">
-                <Alert className="mb-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-300">
-                  <AlertDescription>
-                    <div className="space-y-2">
-                      <p className="font-semibold text-blue-900 flex items-center gap-2">
-                        <MessageSquare className="w-4 h-4" />
-                        Chat Expert (Sans IA) - Mode d&apos;emploi
-                      </p>
-                      <div className="text-sm text-blue-800 space-y-1">
-                        <p>
-                          💬 <strong>Discussion collaborative</strong> : Communiquez avec d&apos;autres experts sur ce document
-                        </p>
-                        <p>
-                          🔍 <strong>Assistant de Recherche intégré</strong> : Cliquez sur &quot;Ouvrir l&apos;Assistant de Recherche&quot; pour poser des questions.
-                          L&apos;assistant cherche dans les entités et relations validées du JSON (sans IA, sans invention).
-                        </p>
-                        <p className="text-xs mt-2 p-2 bg-white rounded border border-blue-200">
-                          <strong>Exemples de questions :</strong> &quot;donnes les dosages&quot;, &quot;liste les ingrédients&quot;, &quot;quel est le dosage du produit X&quot;
-                        </p>
-                      </div>
-                    </div>
-                  </AlertDescription>
-                </Alert>
                 <div className="h-[700px]">
                   <ExpertChat
                     documentId={parseInt(id as string)}
                     documentTitle={document?.title || 'Document'}
-                    jsonData={jsonData}
+                    jsonData={jsonData || undefined}
+                    onJsonUpdated={fetchDocumentJson}
                   />
                 </div>
               </TabsContent>
@@ -596,7 +592,7 @@ export default function DocumentJsonViewer() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
-                {document.pages.map((page: any) => (
+                {document.pages.map((page: DocumentPage) => (
                   <Button
                     key={page.id}
                     variant={page.annotation_count > 0 ? 'default' : 'outline'}

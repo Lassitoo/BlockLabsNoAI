@@ -136,6 +136,18 @@
             </GhostTextMetaData>
           </value>
         </entry>
+        <entry key="Avez vous le contexte de mon projet">
+          <value>
+            <GhostTextMetaData>
+              <option name="count" value="1.0" />
+              <option name="timestamps">
+                <list>
+                  <option value="1762713846863" />
+                </list>
+              </option>
+            </GhostTextMetaData>
+          </value>
+        </entry>
         <entry key="B&#10;BlockLabs&#10;Sign Up&#10;Welcome Back&#10;Sign in to continue to BlockLabs&#10;&#10;Login failed&#10;&#10;Username or Email&#10;Lassito&#10;Password&#10;•••••&#10;Sign In&#10;Don't have an account? Create one&#10;&#10;© 2025 BlockLabs. All rights reserved.&#10;&#10;&#10;1/1&#10;&#10;Next.js 16.0.0 (stale)&#10;Webpack&#10;Runtime AxiosError&#10;&#10;&#10;Network Error&#10;src\contexts\AuthContext.tsx (63:7) @&lt;file_name&gt;&#10;&#10;&#10;  61 |   const getCsrfToken = async () =&gt; {&#10;  62 |     try {&#10;&gt; 63 |       await axiosInstance.get(&quot;/csrf/&quot;);&#10;     |       ^&#10;  64 |       // The cookie is now set, no need to return anything&#10;  65 |     } catch (error) {&#10;  66 |       console.error(&quot;Failed to get CSRF token:&quot;, error);&#10;Call Stack&#10;5&#10;&#10;Show 2 ignore-listed frame(s)&#10;async getCsrfToken&#10;src\contexts\AuthContext.tsx (63:7)&#10;async login&#10;src\contexts\AuthContext.tsx (95:5)&#10;async handleSubmit&#10;src\pages\login.tsx (24:26)&#10;1&#10;2&#10;/login&#10;&#10;&#10;Maintenant j ai une erreur ici">
           <value>
             <GhostTextMetaData>

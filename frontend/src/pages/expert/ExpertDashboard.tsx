@@ -17,6 +17,17 @@ interface Document {
   annotator: { username: string };
 }
 
+interface DashboardStatsResponse {
+  success: boolean;
+  total_annotations?: number;
+  total_documents?: number;
+}
+
+interface DocumentsResponse {
+  success: boolean;
+  documents?: Document[];
+}
+
 const ExpertDashboard = () => {
   const router = useRouter();
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -35,11 +46,11 @@ const ExpertDashboard = () => {
       setLoading(true);
       
       // Fetch dashboard stats from API
-      const statsResponse = await axios.get('/expert/dashboard/');
-      
+      const statsResponse = await axios.get<DashboardStatsResponse>('/expert/dashboard/');
+
       // Fetch documents
-      const docsResponse = await axios.get('/expert/documents/?page=1&page_size=10');
-      
+      const docsResponse = await axios.get<DocumentsResponse>('/expert/documents/?page=1&page_size=10');
+
       if (docsResponse.data.success) {
         const docs = docsResponse.data.documents || [];
         setDocuments(docs);
